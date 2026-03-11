@@ -7,7 +7,7 @@ export default function Home() {
         </h1>
 
         <p className="mt-4 text-lg text-gray-600">
-          Descoperă orașele din România
+          Descoperă orașele si evenimentele din România
         </p>
       </div>
     </main>
