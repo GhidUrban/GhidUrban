@@ -1,6 +1,7 @@
 import { placesByCity } from "@/data/places";
 import Image from "next/image";
 import Link from "next/link";
+import Breadcrumb from "@/components/Breadcrumb";
 
 type PlacePageProps = {
     params: Promise<{
@@ -12,6 +13,11 @@ type PlacePageProps = {
 
 export default async function PlacePage({ params }: PlacePageProps) {
     const { slug, category, placeId } = await params;
+
+    const cityName = slug
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
 
     const categoryName = category
         .split("-")
@@ -29,6 +35,14 @@ export default async function PlacePage({ params }: PlacePageProps) {
     const stars = "⭐".repeat(Math.round(place.rating));
     return (
         <div className="max-w-4xl mx-auto p-10">
+            <Breadcrumb
+                items={[
+                    { label: "Orașe", href: "/orase" },
+                    { label: cityName, href: `/orase/${slug}` },
+                    { label: categoryName, href: `/orase/${slug}/${category}` },
+                    { label: place.name }
+                ]}
+            />
             <Link
                 href={`/orase/${slug}/${category}`}
                 className="inline-block mb-6 text-sm font-medium text-gray-600 hover:text-gray-900"
