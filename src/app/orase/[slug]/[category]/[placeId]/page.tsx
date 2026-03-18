@@ -1,7 +1,10 @@
-import { placesByCity } from "@/data/places";
 import Image from "next/image";
 import Link from "next/link";
 import Breadcrumb from "@/components/Breadcrumb";
+import { apiGet } from "@/lib/internal-api";
+import { slugToTitle } from "@/lib/slug";
+import { notFound } from "next/navigation";
+import type { Place } from "@/data/places";
 
 type PlacePageProps = {
     params: Promise<{
@@ -11,106 +14,103 @@ type PlacePageProps = {
     }>;
 }
 
+type PlaceApiData = {
+    city_slug: string;
+    category_slug: string;
+    place_id: string;
+    place: Place;
+};
+
 export default async function PlacePage({ params }: PlacePageProps) {
     const { slug, category, placeId } = await params;
 
-    const cityName = slug
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
+    const placeResponse = await apiGet<PlaceApiData>("/api/place", {
+        city_slug: slug,
+        category_slug: category,
+        place_id: placeId,
+    });
 
-    const categoryName = category
-        .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(" ");
-
-    const cityData = placesByCity as any;
-    const places = cityData[slug]?.[category] ?? [];
-
-    const place = places.find((p: any) => p.id === placeId);
-
-    if (!place) {
-        return <div className="p-10">Locatia nu a fost gasita.</div>;
+    if (placeResponse.status === 404) {
+        notFound();
     }
+    if (!placeResponse.success || !placeResponse.data) {
+        notFound();
+    }
+
+    const cityName = slugToTitle(slug);
+    const categoryName = slugToTitle(category);
+    const place = placeResponse.data.place;
     const stars = "⭐".repeat(Math.round(place.rating));
     return (
-        <div className="max-w-4xl mx-auto p-10">
-            <Breadcrumb
-                items={[
-                    { label: "Orașe", href: "/orase" },
-                    { label: cityName, href: `/orase/${slug}` },
-                    { label: categoryName, href: `/orase/${slug}/${category}` },
-                    { label: place.name }
-                ]}
-            />
-            <Link
-                href={`/orase/${slug}/${category}`}
-                className="inline-block mb-6 text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
-                ← Înapoi la {categoryName.toLowerCase()}
-            </Link>
+        <main className="min-h-screen bg-gray-100 px-4 py-8">
+            <div className="mx-auto max-w-5xl">
+                <Breadcrumb
+                    items={[
+                        { label: "Orașe", href: "/orase" },
+                        { label: cityName, href: `/orase/${slug}` },
+                        { label: categoryName, href: `/orase/${slug}/${category}` },
+                        { label: place.name }
+                    ]}
+                />
+                <Link
+                    href={`/orase/${slug}/${category}`}
+                    className="mt-8 inline-block text-sm font-medium text-gray-600 hover:text-gray-900"
+                >
+                    ← Înapoi la {categoryName.toLowerCase()}
+                </Link>
 
-            <Image
-                src={place.image}
-                alt={place.name}
-                width={800}
-                height={400}
-                className="w-full h-64 object-cover rounded-xl mb-6"
-            />
+                <article className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+                    <Image
+                        src={place.image}
+                        alt={place.name}
+                        width={1000}
+                        height={500}
+                        className="h-72 w-full rounded-xl object-cover"
+                    />
 
-            <h1 className="text-4xl font-bold mb-4">{place.name}</h1>
+                    <div className="mt-6">
+                        <h1 className="text-3xl font-bold text-gray-900 md:text-4xl">{place.name}</h1>
+                        <p className="mt-2 text-lg text-gray-600">📍 {place.address}</p>
+                        <p className="mt-2 text-lg text-yellow-600">
+                            {stars} <span className="text-gray-500 text-sm">({place.rating})</span>
+                        </p>
+                        <p className="mt-4 text-gray-700">{place.description}</p>
+                    </div>
 
-            <p className="text-gray-600 mb-2">📍 {place.address}</p>
-
-            <p className="text-yellow-500 text-lg mb-4">
-                {stars} <span className="text-gray-500 text-sm">({place.rating})</span>
-            </p>
-
-            <p className="text-gray-700">{place.description}</p>
-
-            <div className="mt-6 space-y-2 text-gray-700">
-                {place.schedule && (
-                    <p>
-                        🕒 <span className="font-medium">Program:</span> {place.schedule}
-                    </p>
-                )}
-
-                {place.phone && (
-                    <p>
-                        📞 <span className="font-medium">Telefon:</span> {place.phone}
-                    </p>
-                )}
-
-                {place.website && (
-                    <p>
-                        🌐 <span className="font-medium">Website:</span>{" "}
-                        <a
-                            href={place.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                        >
-                            {place.website}
-
-                        </a>
-
-                    </p>
-
-                )}
-                {place.mapsUrl && (
-                    <p>
-                        📍{" "}
-                        <a
-                            href={place.mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline"
-                        >
-                            Gaseste în Google Maps
-                        </a>
-                    </p>
-                )}
+                    <div className="mt-8 grid gap-4 md:grid-cols-2">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-sm font-medium text-gray-500">Program</p>
+                            <p className="mt-1 text-gray-900">{place.schedule}</p>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-sm font-medium text-gray-500">Telefon</p>
+                            <p className="mt-1 text-gray-900">{place.phone}</p>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-sm font-medium text-gray-500">Website</p>
+                            <a
+                                href={place.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1 inline-block text-blue-600 hover:underline"
+                            >
+                                {place.website}
+                            </a>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <p className="text-sm font-medium text-gray-500">Locație</p>
+                            <a
+                                href={place.mapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1 inline-block text-blue-600 hover:underline"
+                            >
+                                Deschide în Google Maps
+                            </a>
+                        </div>
+                    </div>
+                </article>
             </div>
-        </div>
+        </main>
     );
 }

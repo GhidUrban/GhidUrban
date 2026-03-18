@@ -47,7 +47,7 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
           Nu am găsit nicio locație pentru „{search}”.
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {filteredPlaces.map((place) => (
             <Link
               key={place.id}

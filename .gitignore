@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# local IDE / AI artifacts
+.cursor/
+.vscode/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
