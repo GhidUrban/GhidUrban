@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { PlaceCard } from "@/components/PlaceCard";
 import type { Place } from "@/data/places";
 
 type PlacesListProps = {
@@ -47,19 +47,29 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
           Nu am găsit nicio locație pentru „{search}”.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredPlaces.map((place) => (
             <Link
               key={place.id}
               href={`/orase/${slug}/${category}/${place.id}`}
+              className="block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
             >
-              <PlaceCard
-                name={place.name}
-                image={place.image}
-                address={place.address}
-                rating={place.rating}
-                description={place.description}
-              />
+              <div className="p-4 space-y-3">
+                <Image
+                  src={place.image}
+                  alt={place.name}
+                  width={600}
+                  height={300}
+                  className="h-40 w-full rounded-xl object-cover"
+                />
+
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-gray-900">{place.name}</h3>
+                  <p className="text-sm text-gray-500">{place.address}</p>
+                  <p className="text-sm font-semibold text-yellow-600">⭐ {place.rating}</p>
+                  <p className="text-sm text-gray-600">{place.description}</p>
+                </div>
+              </div>
             </Link>
           ))}
         </div>

@@ -1,39 +1,108 @@
-import { fail, ok } from "@/lib/api-response";
+import { ok } from "@/lib/api-response";
 import {
     getPlacesByCategory,
     isValidCategorySlug,
     isValidCitySlug,
 } from "@/lib/place-repository";
+import type { Place } from "@/data/places";
+import { NextResponse } from "next/server";
+
+type PlacesSortValue = "rating_desc" | "rating_asc" | "name_asc" | "name_desc";
+
+function errorResponse(message: string, status: number) {
+    return NextResponse.json(
+        {
+            success: false,
+            message,
+            data: null,
+        },
+        { status }
+    );
+}
+
+function isValidSortValue(sort: string): sort is PlacesSortValue {
+    return ["rating_desc", "rating_asc", "name_asc", "name_desc"].includes(sort);
+}
+
+function filterPlaces(places: Place[], search: string | null): Place[] {
+    const normalizedSearch = search?.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+        return [...places];
+    }
+
+    return places.filter((place) => {
+        return (
+            place.name.toLowerCase().includes(normalizedSearch) ||
+            place.description.toLowerCase().includes(normalizedSearch) ||
+            place.address.toLowerCase().includes(normalizedSearch)
+        );
+    });
+}
+
+function sortPlaces(places: Place[], sort: PlacesSortValue | null): Place[] {
+    const sortedPlaces = [...places];
+
+    if (!sort) {
+        return sortedPlaces;
+    }
+
+    if (sort === "rating_desc") {
+        return sortedPlaces.sort((a, b) => b.rating - a.rating);
+    }
+
+    if (sort === "rating_asc") {
+        return sortedPlaces.sort((a, b) => a.rating - b.rating);
+    }
+
+    if (sort === "name_asc") {
+        return sortedPlaces.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return sortedPlaces.sort((a, b) => b.name.localeCompare(a.name));
+}
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const city_slug = searchParams.get("city_slug");
-    const category_slug = searchParams.get("category_slug");
+    try {
+        const { searchParams } = new URL(request.url);
+        const city_slug = searchParams.get("city_slug");
+        const category_slug = searchParams.get("category_slug");
+        const search = searchParams.get("search");
+        const sort = searchParams.get("sort");
 
-    if (!city_slug || !category_slug) {
-        return fail("Missing required query params: city_slug, category_slug.", 400, {
+        if (!city_slug) {
+            return errorResponse("city_slug is required", 400);
+        }
+
+        if (!category_slug) {
+            return errorResponse("category_slug is required", 400);
+        }
+
+        if (!isValidCitySlug(city_slug)) {
+            return errorResponse("City not found", 404);
+        }
+
+        if (!isValidCategorySlug(city_slug, category_slug)) {
+            return errorResponse("Category not found for this city", 404);
+        }
+
+        if (sort && !isValidSortValue(sort)) {
+            return errorResponse("Invalid sort value", 400);
+        }
+
+        const places = getPlacesByCategory(city_slug, category_slug);
+        const filteredPlaces = filterPlaces(places, search);
+        const sortValue = sort && isValidSortValue(sort) ? sort : null;
+        const sortedPlaces = sortPlaces(filteredPlaces, sortValue);
+
+        return ok("Places fetched successfully", {
             city_slug,
             category_slug,
+            count: sortedPlaces.length,
+            places: sortedPlaces,
         });
+    } catch (error) {
+        console.error("Failed to fetch places", error);
+        return errorResponse("Failed to fetch places", 500);
     }
-
-    if (!isValidCitySlug(city_slug)) {
-        return fail("City not found.", 404, { city_slug });
-    }
-
-    if (!isValidCategorySlug(city_slug, category_slug)) {
-        return fail("Category not found for this city.", 404, {
-            city_slug,
-            category_slug,
-        });
-    }
-
-    const places = getPlacesByCategory(city_slug, category_slug);
-
-    return ok("Places fetched successfully.", {
-        city_slug,
-        category_slug,
-        count: places.length,
-        places,
-    });
 }

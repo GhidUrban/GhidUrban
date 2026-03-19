@@ -23,6 +23,7 @@ Last updated: 2026-03-11
 
 ## 4) Validation and 404 behavior
 - Dynamic route params are validated against data.
+- In this Next.js 16 project, dynamic route pages must treat `params` as `Promise` and use `await params`.
 - Invalid city slug -> `notFound()`
 - Invalid category for city -> `notFound()`
 - Invalid placeId for city/category -> `notFound()`
@@ -67,10 +68,19 @@ Last updated: 2026-03-11
   - `{ success, message, data }`
 - Helper: `src/lib/api-response.ts`
 - Internal server fetch helper: `src/lib/internal-api.ts`
+- `apiGet(...)` now handles fetch failures, JSON parse failures, and invalid response shapes with a consistent fallback:
+  - `{ success: false, status, message, data: null }`
+- UI/API naming boundary convention in route pages:
+  - UI and route params use `slug`, `category`, `placeId`
+  - API query params and API response types use `city_slug`, `category_slug`, `place_id`
+  - Mapping is done explicitly at the `apiGet(...)` call sites
 - Endpoints:
   - `GET /api/cities`
   - `GET /api/categories?city_slug=...`
   - `GET /api/places?city_slug=...&category_slug=...`
+    - validates missing/invalid `city_slug` and `category_slug`
+    - supports optional `search` over `name`, `description`, `address`
+    - supports optional `sort`: `rating_desc`, `rating_asc`, `name_asc`, `name_desc`
   - `GET /api/place?city_slug=...&category_slug=...&place_id=...`
 - Pages now consume API endpoints server-side (not repository directly).
 - API smoke checks already validated:

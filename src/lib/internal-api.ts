@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 type ApiResponseEnvelope<T> = {
     success: boolean;
     message: string;
-    data: T;
+    data: T | null;
 };
 
 type ApiGetResult<T> = {
@@ -15,6 +15,15 @@ type ApiGetResult<T> = {
 
 function getFallbackBaseUrl() {
     return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
+
+function getErrorResult<T>(status: number, message: string): ApiGetResult<T> {
+    return {
+        status,
+        success: false,
+        message,
+        data: null,
+    };
 }
 
 export async function apiGet<T>(
@@ -31,8 +40,30 @@ export async function apiGet<T>(
         url.searchParams.set(key, value);
     }
 
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    const json = (await response.json()) as ApiResponseEnvelope<T>;
+    let response: Response;
+
+    try {
+        response = await fetch(url.toString(), {
+            next: { revalidate: 60 },
+        });
+    } catch (error) {
+        console.error("apiGet fetch failed", { path, error });
+        return getErrorResult<T>(500, "Internal API request failed.");
+    }
+
+    let json: ApiResponseEnvelope<T>;
+
+    try {
+        json = (await response.json()) as ApiResponseEnvelope<T>;
+    } catch (error) {
+        console.error("apiGet json parse failed", { path, status: response.status, error });
+        return getErrorResult<T>(response.status, "Internal API returned an invalid JSON response.");
+    }
+
+    if (typeof json.success !== "boolean" || typeof json.message !== "string") {
+        console.error("apiGet invalid response shape", { path, status: response.status });
+        return getErrorResult<T>(response.status, "Internal API returned an invalid response shape.");
+    }
 
     return {
         status: response.status,
