@@ -1,6 +1,6 @@
 import { ok } from "@/lib/api-response";
 import {
-    getPlaceById,
+    getPlaceByIdFromSupabase,
     isValidCategorySlug,
     isValidCitySlug,
 } from "@/lib/place-repository";
@@ -44,11 +44,28 @@ export async function GET(request: Request) {
             return errorResponse("Category not found for this city", 404);
         }
 
-        const place = getPlaceById(city_slug, category_slug, place_id);
+        const supabasePlace = await getPlaceByIdFromSupabase(
+            city_slug,
+            category_slug,
+            place_id
+        );
 
-        if (!place) {
+        if (!supabasePlace) {
             return errorResponse("Place not found for this city/category", 404);
         }
+
+        const place = {
+            id: supabasePlace.place_id,
+            name: supabasePlace.name,
+            description: supabasePlace.description ?? "",
+            address: supabasePlace.address ?? "",
+            schedule: supabasePlace.schedule ?? "",
+            image: supabasePlace.image ?? "",
+            rating: supabasePlace.rating ?? 0,
+            phone: supabasePlace.phone ?? "",
+            website: supabasePlace.website ?? "",
+            mapsUrl: supabasePlace.maps_url ?? "",
+        };
 
         return ok("Place fetched successfully", {
             city_slug,

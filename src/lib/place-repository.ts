@@ -145,3 +145,27 @@ export async function getPlacesByCategoryFromSupabase(
 
     return data ?? [];
 }
+
+
+export async function getPlaceByIdFromSupabase(
+    citySlug: string,
+    categorySlug: string,
+    placeId: string,
+): Promise<SupabasePlace | null> {
+    const { data, error } = await supabase
+        .from("places")
+        .select(
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url",
+        )
+        .eq("city_slug", citySlug)
+        .eq("category_slug", categorySlug)
+        .eq("place_id", placeId)
+        .single();
+
+    if (error) {
+        console.error("Supabase place error:", error);
+        return null;
+    }
+
+    return data;
+}
