@@ -9,6 +9,7 @@ import {
 import { slugToTitle } from "@/lib/slug";
 import { supabase } from "@/lib/supabase/client";
 
+
 export type CategoryCard = {
     slug: CategorySlug;
     name: string;
@@ -95,3 +96,19 @@ export function getPlacesByCategory(city: CitySlug, category: CategorySlug): Pla
 export function getPlaceById(city: CitySlug, category: CategorySlug, placeId: string): Place | undefined {
     return getPlacesByCategory(city, category).find((place) => place.id === placeId);
 }
+
+
+export async function getCategoriesByCityFromSupabase(citySlug: string) {
+  const { data, error } = await supabase
+    .from("categories")
+    .select("category_slug, category_name")
+    .eq("city_slug", citySlug);
+
+  if (error) {
+    console.error("Supabase categories error:", error);
+    throw new Error("Failed to fetch categories");
+  }
+
+  return data;
+}
+

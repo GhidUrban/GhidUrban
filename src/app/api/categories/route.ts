@@ -1,5 +1,8 @@
 import { ok } from "@/lib/api-response";
-import { getCategoryCardsForCity, isValidCitySlug } from "@/lib/place-repository";
+import {
+    getCategoriesByCityFromSupabase,
+    isValidCitySlug,
+} from "@/lib/place-repository";
 import { NextResponse } from "next/server";
 
 function errorResponse(message: string, status: number) {
@@ -26,11 +29,7 @@ export async function GET(request: Request) {
             return errorResponse("City not found", 404);
         }
 
-        const categories = getCategoryCardsForCity(city_slug).map((category) => ({
-            category_slug: category.slug,
-            category_name: category.name,
-            category_icon: category.icon,
-        }));
+        const categories = await getCategoriesByCityFromSupabase(city_slug);
 
         return ok("Categories fetched successfully", {
             city_slug,
