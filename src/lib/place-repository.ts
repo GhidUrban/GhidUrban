@@ -21,6 +21,19 @@ export type SupabaseCity = {
     name: string;
 };
 
+export type SupabasePlace = {
+    place_id: string;
+    name: string;
+    description: string | null;
+    address: string | null;
+    schedule: string | null;
+    image: string | null;
+    rating: number | null;
+    phone: string | null;
+    website: string | null;
+    maps_url: string | null;
+};
+
 const CATEGORY_CARDS: CategoryCard[] = [
     { name: "Restaurante", slug: "restaurante", icon: "🍽" },
     { name: "Cafenele", slug: "cafenele", icon: "☕" },
@@ -112,3 +125,23 @@ export async function getCategoriesByCityFromSupabase(citySlug: string) {
   return data;
 }
 
+export async function getPlacesByCategoryFromSupabase(
+    citySlug: string,
+    categorySlug: string,
+): Promise<SupabasePlace[]> {
+    const { data, error } = await supabase
+        .from("places")
+        .select(
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url",
+        )
+        .eq("city_slug", citySlug)
+        .eq("category_slug", categorySlug)
+        .order("name", { ascending: true });
+
+    if (error) {
+        console.error("Supabase places error:", error);
+        throw new Error("Failed to fetch places");
+    }
+
+    return data ?? [];
+}

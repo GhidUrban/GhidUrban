@@ -1,6 +1,6 @@
 import { ok } from "@/lib/api-response";
 import {
-    getPlacesByCategory,
+    getPlacesByCategoryFromSupabase,
     isValidCategorySlug,
     isValidCitySlug,
 } from "@/lib/place-repository";
@@ -90,7 +90,20 @@ export async function GET(request: Request) {
             return errorResponse("Invalid sort value", 400);
         }
 
-        const places = getPlacesByCategory(city_slug, category_slug);
+        const supabasePlaces = await getPlacesByCategoryFromSupabase(city_slug, category_slug);
+
+        const places: Place[] = supabasePlaces.map((p) => ({
+            id: p.place_id,
+            name: p.name,
+            description: p.description ?? "",
+            address: p.address ?? "",
+            schedule: p.schedule ?? "",
+            image: p.image ?? "",
+            rating: p.rating ?? 0,
+            phone: p.phone ?? "",
+            website: p.website ?? "",
+            mapsUrl: p.maps_url ?? "",
+        }));
         const filteredPlaces = filterPlaces(places, search);
         const sortValue = sort && isValidSortValue(sort) ? sort : null;
         const sortedPlaces = sortPlaces(filteredPlaces, sortValue);
