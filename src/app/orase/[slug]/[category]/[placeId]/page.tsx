@@ -114,8 +114,8 @@ export default async function PlacePage({ params }: PlacePageProps) {
             : [];
     const stars = "⭐".repeat(Math.round(place.rating));
     return (
-        <main className="min-h-screen bg-gray-100 px-4 py-8">
-            <div className="mx-auto max-w-5xl">
+        <main className="min-h-screen bg-gray-100 px-4 pb-6 pt-[5px] md:pb-8 md:pt-[5px]">
+            <div className="mb-6">
                 <Breadcrumb
                     items={[
                         { label: "Orașe", href: "/orase" },
@@ -124,6 +124,9 @@ export default async function PlacePage({ params }: PlacePageProps) {
                         { label: place.name }
                     ]}
                 />
+            </div>
+
+            <div className="mx-auto max-w-5xl">
                 <Link
                     href={`/orase/${slug}/${category}`}
                     className="mt-8 inline-block text-sm font-medium text-gray-600 hover:text-gray-900"
@@ -133,7 +136,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
 
                 <article className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
                     <Image
-                        src={place.image || PLACE_IMAGE_FALLBACK}
+                        src={place.image}
                         alt={place.name}
                         width={1000}
                         height={500}

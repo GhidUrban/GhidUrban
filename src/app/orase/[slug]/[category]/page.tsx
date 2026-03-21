@@ -51,15 +51,18 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     const placesCountLabel = places.length === 1 ? "1 locație găsită" : `${places.length} locații găsite`;
 
     return (
-        <main className="min-h-screen bg-gray-100 px-4 py-8">
+        <main className="min-h-screen bg-gray-100 px-4 pb-6 pt-[5px]">
+            <div className="mb-6">
+                <Breadcrumb
+                    items={[
+                        { label: "Orașe", href: "/orase" },
+                        { label: cityName, href: `/orase/${slug}` },
+                        { label: categoryName }
+                    ]}
+                />
+            </div>
+
             <div className="mx-auto max-w-5xl">
-            <Breadcrumb
-                items={[
-                    { label: "Orașe", href: "/orase" },
-                    { label: cityName, href: `/orase/${slug}` },
-                    { label: categoryName }
-                ]}
-            />
 
                 <h1 className="mb-4 mt-8 text-center text-3xl font-semibold text-gray-900 md:text-4xl">
                     {categoryName}

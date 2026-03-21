@@ -1,6 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { getAllCitySlugs } from "@/lib/place-repository";
-import { slugToTitle } from "@/lib/slug";
+import { getAllCitiesFromSupabase } from "@/lib/place-repository";
 import { NextResponse } from "next/server";
 
 function errorResponse(message: string, status: number) {
@@ -16,10 +15,10 @@ function errorResponse(message: string, status: number) {
 
 export async function GET() {
     try {
-        const city_slugs = getAllCitySlugs();
-        const cities = city_slugs.map((city_slug) => ({
-            city_slug,
-            city_name: slugToTitle(city_slug),
+        const supabaseCities = await getAllCitiesFromSupabase();
+        const cities = supabaseCities.map((city) => ({
+            city_slug: city.slug,
+            city_name: city.name,
         }));
 
         return ok("Cities fetched successfully", {

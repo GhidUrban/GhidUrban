@@ -7,11 +7,17 @@ import {
     type Place,
 } from "@/data/places";
 import { slugToTitle } from "@/lib/slug";
+import { supabase } from "@/lib/supabase/client";
 
 export type CategoryCard = {
     slug: CategorySlug;
     name: string;
     icon: string;
+};
+
+export type SupabaseCity = {
+    slug: string;
+    name: string;
 };
 
 const CATEGORY_CARDS: CategoryCard[] = [
@@ -38,6 +44,19 @@ export function getCategoryCardsForCity(_: CitySlug): CategoryCard[] {
 
 export function getAllCitySlugs(): CitySlug[] {
     return Object.keys(placesByCity) as CitySlug[];
+}
+
+export async function getAllCitiesFromSupabase(): Promise<SupabaseCity[]> {
+    const { data, error } = await supabase
+        .from("cities")
+        .select("slug, name")
+        .order("name", { ascending: true });
+
+    if (error) {
+        throw error;
+    }
+
+    return data ?? [];
 }
 
 export function getPlacesByCategory(city: CitySlug, category: CategorySlug): Place[] {
