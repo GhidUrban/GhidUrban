@@ -70,12 +70,12 @@ export default async function CityPage({ params }: CityPageProps) {
 
                 <Link
                     href="/orase"
-                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                 >
                     ← Înapoi la Orașe
                 </Link>
 
-                <h1 className="mb-6 text-center text-2xl font-semibold text-gray-900">
+                <h1 className="mb-6 text-center text-2xl font-semibold tracking-tight text-gray-900">
                     {cityName}
                 </h1>
 
@@ -87,7 +87,7 @@ export default async function CityPage({ params }: CityPageProps) {
                             key={category.category_slug}
                             href={`/orase/${slug}/${category.category_slug}`}
                             aria-label={`${categoryTitle}, vezi locurile`}
-                            className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100"
+                            className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm outline-none transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                         >
                             <div className="relative shrink-0 overflow-hidden rounded-t-2xl">
                                 <Image

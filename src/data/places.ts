@@ -9,6 +9,9 @@ export type Place = {
     phone: string;
     website: string;
     mapsUrl: string;
+    featured?: boolean;
+    featured_until?: string | null;
+    activeFeatured?: boolean;
 };
 
 const IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";
@@ -306,6 +309,9 @@ export type Place = {
     phone: string;
     website: string;
     mapsUrl: string;
+    featured?: boolean;
+    featured_until?: string | null;
+    activeFeatured?: boolean;
 };
 
 const IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";

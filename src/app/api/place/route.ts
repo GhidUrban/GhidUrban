@@ -1,4 +1,5 @@
 import { ok } from "@/lib/api-response";
+import { isActiveFeatured } from "@/lib/is-active-featured";
 import {
     getPlaceByIdFromSupabase,
     isValidCategorySlug,
@@ -54,6 +55,8 @@ export async function GET(request: Request) {
             return errorResponse("Place not found for this city/category", 404);
         }
 
+        const featured = Boolean(supabasePlace.featured);
+        const featured_until = supabasePlace.featured_until ?? null;
         const place = {
             id: supabasePlace.place_id,
             name: supabasePlace.name,
@@ -65,6 +68,9 @@ export async function GET(request: Request) {
             phone: supabasePlace.phone ?? "",
             website: supabasePlace.website ?? "",
             mapsUrl: supabasePlace.maps_url ?? "",
+            featured,
+            featured_until,
+            activeFeatured: isActiveFeatured({ featured, featured_until }),
         };
 
         return ok("Place fetched successfully", {

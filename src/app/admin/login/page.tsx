@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
             const json = (await response.json()) as LoginResponse;
 
             if (!response.ok || !json.success) {
-                setErrorMessage(json.message || "Autentificare eșuată");
+                setErrorMessage(json.message || "Sign-in failed");
                 setLoading(false);
                 return;
             }
@@ -44,7 +44,7 @@ export default function AdminLoginPage() {
             router.push("/admin");
             router.refresh();
         } catch {
-            setErrorMessage("Autentificare eșuată");
+            setErrorMessage("Sign-in failed");
             setLoading(false);
         }
     }
@@ -54,7 +54,7 @@ export default function AdminLoginPage() {
             <div className="mx-auto mt-16 max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <h1 className="text-3xl font-semibold text-gray-900">Admin Login</h1>
                 <p className="mt-2 text-sm text-gray-600">
-                    Autentificare pentru panoul de administrare
+                    Sign in to the admin dashboard
                 </p>
 
                 <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
                             loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
                         }`}
                     >
-                        {loading ? "Se autentifică..." : "Intră în admin"}
+                        {loading ? "Signing in..." : "Sign in"}
                     </button>
                 </form>
             </div>

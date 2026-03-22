@@ -1,4 +1,5 @@
 import { ok } from "@/lib/api-response";
+import { isActiveFeatured } from "@/lib/is-active-featured";
 import {
     getPlacesByCategoryFromSupabase,
     isValidCategorySlug,
@@ -43,23 +44,32 @@ function filterPlaces(places: Place[], search: string | null): Place[] {
 function sortPlaces(places: Place[], sort: PlacesSortValue | null): Place[] {
     const sortedPlaces = [...places];
 
-    if (!sort) {
-        return sortedPlaces;
-    }
+    sortedPlaces.sort((a, b) => {
+        const featuredRank = Number(!!b.activeFeatured) - Number(!!a.activeFeatured);
+        if (featuredRank !== 0) {
+            return featuredRank;
+        }
 
-    if (sort === "rating_desc") {
-        return sortedPlaces.sort((a, b) => b.rating - a.rating);
-    }
+        if (!sort) {
+            return a.name.localeCompare(b.name);
+        }
 
-    if (sort === "rating_asc") {
-        return sortedPlaces.sort((a, b) => a.rating - b.rating);
-    }
+        if (sort === "rating_desc") {
+            return b.rating - a.rating;
+        }
 
-    if (sort === "name_asc") {
-        return sortedPlaces.sort((a, b) => a.name.localeCompare(b.name));
-    }
+        if (sort === "rating_asc") {
+            return a.rating - b.rating;
+        }
 
-    return sortedPlaces.sort((a, b) => b.name.localeCompare(a.name));
+        if (sort === "name_asc") {
+            return a.name.localeCompare(b.name);
+        }
+
+        return b.name.localeCompare(a.name);
+    });
+
+    return sortedPlaces;
 }
 
 export async function GET(request: Request) {
@@ -92,18 +102,26 @@ export async function GET(request: Request) {
 
         const supabasePlaces = await getPlacesByCategoryFromSupabase(city_slug, category_slug);
 
-        const places: Place[] = supabasePlaces.map((p) => ({
-            id: p.place_id,
-            name: p.name,
-            description: p.description ?? "",
-            address: p.address ?? "",
-            schedule: p.schedule ?? "",
-            image: p.image ?? "",
-            rating: p.rating ?? 0,
-            phone: p.phone ?? "",
-            website: p.website ?? "",
-            mapsUrl: p.maps_url ?? "",
-        }));
+        const places: Place[] = supabasePlaces.map((p) => {
+            const featured = Boolean(p.featured);
+            const featured_until = p.featured_until ?? null;
+            const activeFeatured = isActiveFeatured({ featured, featured_until });
+            return {
+                id: p.place_id,
+                name: p.name,
+                description: p.description ?? "",
+                address: p.address ?? "",
+                schedule: p.schedule ?? "",
+                image: p.image ?? "",
+                rating: p.rating ?? 0,
+                phone: p.phone ?? "",
+                website: p.website ?? "",
+                mapsUrl: p.maps_url ?? "",
+                featured,
+                featured_until,
+                activeFeatured,
+            };
+        });
         const filteredPlaces = filterPlaces(places, search);
         const sortValue = sort && isValidSortValue(sort) ? sort : null;
         const sortedPlaces = sortPlaces(filteredPlaces, sortValue);

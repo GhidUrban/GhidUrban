@@ -24,7 +24,7 @@ function NavLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:opacity-90 ${
+      className={`rounded-full px-3 py-1.5 text-sm font-medium outline-none transition-colors duration-200 ease-out focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:opacity-90 ${
         isActive
           ? "bg-gray-100 text-gray-900"
           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -79,7 +79,7 @@ export default function AppHeader() {
       <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
         <Link
           href="/"
-          className="flex shrink-0 items-center rounded-md leading-none transition-opacity duration-200 ease-out hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:opacity-80"
+          className="flex shrink-0 items-center rounded-md leading-none outline-none transition-opacity duration-200 ease-out hover:opacity-90 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-px active:opacity-90"
         >
           <Image
             src="/images/ghidurban-logo-main.png"

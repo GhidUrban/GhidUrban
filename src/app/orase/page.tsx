@@ -60,17 +60,17 @@ export default async function OrasePage() {
         </div>
         <Link
           href="/"
-          className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+          className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
         >
           ← Înapoi la Acasă
         </Link>
-        <h1 className="mb-4 text-center text-2xl font-semibold text-gray-900">Orașe</h1>
+        <h1 className="mb-4 text-center text-2xl font-semibold tracking-tight text-gray-900">Orașe</h1>
         <div className="mt-6 grid grid-cols-2 gap-4">
           {cities.map((city) => (
             <Link
               key={city.city_slug}
               href={`/orase/${city.city_slug}`}
-              className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100"
+              className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm outline-none transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
             >
               <div className="relative overflow-hidden rounded-t-2xl">
                 <Image
@@ -111,7 +111,7 @@ export default async function OrasePage() {
 
         <div className="mx-auto grid w-full max-w-5xl grid-cols-5 grid-rows-3 gap-2 place-items-center">
           <div className="col-start-3 row-start-2 text-center">
-            <h1 className="text-center text-2xl font-semibold text-gray-900">Orașe</h1>
+            <h1 className="text-center text-2xl font-semibold tracking-tight text-gray-900">Orașe</h1>
           </div>
 
           {positions.slice(0, cities.length).map((position) => {
@@ -121,7 +121,7 @@ export default async function OrasePage() {
               <Link
                 key={city.city_slug}
                 href={`/orase/${city.city_slug}`}
-                className="group block h-full w-full min-w-0 max-w-[15rem] justify-self-center overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg"
+                className="group block h-full w-full min-w-0 max-w-[15rem] justify-self-center overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm outline-none transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                 style={{
                   gridColumn: position.col,
                   gridRow: position.row,

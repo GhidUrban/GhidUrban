@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { PlaceImage } from "@/components/PlaceImage";
+import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { apiGet } from "@/lib/internal-api";
 import { resolvePlaceImageAbsoluteUrl } from "@/lib/place-image";
 import { slugToTitle } from "@/lib/slug";
@@ -233,12 +234,12 @@ export default async function PlacePage({ params }: PlacePageProps) {
 
                 <Link
                     href={`/orase/${slug}/${category}`}
-                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                 >
                     ← Înapoi la {categoryName.toLowerCase()}
                 </Link>
 
-                <article className="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
+                <article className="mt-6 rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm ring-1 ring-gray-100/80 md:p-8">
                     <div className="relative overflow-hidden rounded-2xl">
                         <PlaceImage
                             place={place}
@@ -253,21 +254,21 @@ export default async function PlacePage({ params }: PlacePageProps) {
                             className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent"
                             aria-hidden
                         />
-                        <h1 className="absolute bottom-6 left-6 right-6 text-3xl font-bold text-white md:text-4xl">
+                        <h1 className="absolute bottom-6 left-6 right-6 text-3xl font-semibold tracking-tight text-white drop-shadow-sm md:text-4xl">
                             {place.name}
                         </h1>
                     </div>
 
                     {place.description ? (
-                        <div className="mt-6">
-                            <p className="text-base leading-7 text-gray-700">{place.description}</p>
+                        <div className="mt-8">
+                            <p className="text-base leading-relaxed text-gray-600">{place.description}</p>
                         </div>
                     ) : null}
 
                     <div className="mt-8 grid gap-4 md:grid-cols-2">
                         {place.address ? (
-                            <div className="rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            <div className="rounded-xl border border-gray-200/90 bg-gray-50/30 px-4 py-4 shadow-sm">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Locație
                                 </p>
                                 <div className="mt-2 flex items-start gap-2">
@@ -281,7 +282,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
                                         href={place.mapsUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mt-3 inline-flex items-center rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-200 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:opacity-90"
+                                        className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200/80 transition duration-200 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0.5 active:opacity-90"
                                     >
                                         Vezi pe hartă →
                                     </a>
@@ -289,10 +290,10 @@ export default async function PlacePage({ params }: PlacePageProps) {
                             </div>
                         ) : null}
                         <div
-                            className={`rounded-xl border border-gray-200 bg-white px-4 py-4 text-left shadow-sm${place.address ? "" : " md:col-span-2"}`}
+                            className={`rounded-xl border border-gray-200/90 bg-gray-50/30 px-4 py-4 text-left shadow-sm${place.address ? "" : " md:col-span-2"}`}
                         >
                             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                     Program
                                 </p>
                                 <span
@@ -306,7 +307,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
                                 </span>
                             </div>
 
-                            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-gray-700">
+                            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-600">
                                 {formatSchedule(place.schedule)}
                             </p>
                         </div>
@@ -314,37 +315,22 @@ export default async function PlacePage({ params }: PlacePageProps) {
                 </article>
 
                 {similarPlaces.length > 0 ? (
-                    <section className="mt-10">
-                        <h2 className="text-xl font-semibold text-gray-900">Locuri similare</h2>
-                        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2">
-                            {similarPlaces.map((similarPlace) => {
-                                return (
-                                    <Link
-                                        key={similarPlace.id}
-                                        href={`/orase/${slug}/${category}/${similarPlace.id}`}
-                                        className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100"
-                                    >
-                                        <div className="flex h-full flex-col">
-                                            <div className="relative overflow-hidden rounded-t-2xl">
-                                                <PlaceImage
-                                                    place={similarPlace}
-                                                    citySlug={slug}
-                                                    categorySlug={category}
-                                                    width={600}
-                                                    height={300}
-                                                    className="h-36 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
-                                                />
-                                            </div>
-                                            <div className="flex flex-1 flex-col space-y-1 p-4">
-                                                <h3 className="text-sm font-semibold text-gray-900">
-                                                    {similarPlace.name}
-                                                </h3>
-                                                <p className="text-sm text-gray-500">{similarPlace.address}</p>
-                                            </div>
-                                        </div>
-                                    </Link>
-                                );
-                            })}
+                    <section className="mt-12 border-t border-gray-200/80 pt-10">
+                        <h2 className="text-lg font-semibold tracking-tight text-gray-900 sm:text-xl">
+                            Locuri similare
+                        </h2>
+                        <p className="mt-1 text-sm text-gray-500">Alte locuri din aceeași categorie.</p>
+                        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {similarPlaces.map((similarPlace) => (
+                                <PublicPlaceCard
+                                    key={similarPlace.id}
+                                    place={similarPlace}
+                                    citySlug={slug}
+                                    categorySlug={category}
+                                    activeFeatured={similarPlace.activeFeatured === true}
+                                    href={`/orase/${slug}/${category}/${similarPlace.id}`}
+                                />
+                            ))}
                         </div>
                     </section>
                 ) : null}

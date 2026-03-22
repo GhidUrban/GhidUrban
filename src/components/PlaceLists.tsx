@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { PlaceImage } from "@/components/PlaceImage";
+import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import type { Place } from "@/data/places";
 
 type PlacesListProps = {
@@ -17,16 +16,24 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
   const filteredPlaces = useMemo(() => {
     const searchValue = search.toLowerCase().trim();
 
-    if (!searchValue) {
-      return places;
-    }
+    const base =
+      !searchValue
+        ? places
+        : places.filter((place) => {
+            const addr = place.address?.toLowerCase() ?? "";
+            return (
+              place.name.toLowerCase().includes(searchValue) ||
+              addr.includes(searchValue)
+            );
+          });
 
-    return places.filter((place) => {
-      const addr = place.address?.toLowerCase() ?? "";
-      return (
-        place.name.toLowerCase().includes(searchValue) ||
-        addr.includes(searchValue)
-      );
+    return [...base].sort((a, b) => {
+      const rank =
+        Number(!!b.activeFeatured) - Number(!!a.activeFeatured);
+      if (rank !== 0) {
+        return rank;
+      }
+      return a.name.localeCompare(b.name);
     });
   }, [places, search]);
 
@@ -38,42 +45,30 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
           placeholder="Caută un loc după nume sau adresă..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          className="w-full rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 placeholder:text-gray-400 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-gray-200 focus:ring-offset-2"
+          className="w-full rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm transition-shadow duration-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 focus:ring-offset-gray-100"
         />
       </div>
 
       {filteredPlaces.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-600 shadow-sm">
+        <div className="rounded-2xl border border-gray-200/90 bg-white p-4 text-sm text-gray-600 shadow-sm ring-1 ring-gray-100/60">
           Nu am găsit rezultate.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredPlaces.map((place) => (
-            <Link
-              key={place.id}
-              href={`/orase/${slug}/${category}/${place.id}`}
-              className="group block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-95"
-            >
-              <div className="h-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow] duration-200 ease-out group-hover:-translate-y-1 group-hover:shadow-lg">
-                <div className="relative overflow-hidden rounded-t-2xl">
-                  <PlaceImage
-                    place={place}
-                    citySlug={slug}
-                    categorySlug={category}
-                    width={600}
-                    height={400}
-                    className="h-36 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
-                  />
-                </div>
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-gray-950">{place.name}</h3>
-                  {place.address?.trim() ? (
-                    <p className="mt-1 text-sm text-gray-500">{place.address.trim()}</p>
-                  ) : null}
-                </div>
-              </div>
-            </Link>
-          ))}
+          {filteredPlaces.map((place) => {
+            const isFeatured = place.activeFeatured === true;
+
+            return (
+              <PublicPlaceCard
+                key={place.id}
+                place={place}
+                citySlug={slug}
+                categorySlug={category}
+                activeFeatured={isFeatured}
+                href={`/orase/${slug}/${category}/${place.id}`}
+              />
+            );
+          })}
         </div>
       )}
     </div>

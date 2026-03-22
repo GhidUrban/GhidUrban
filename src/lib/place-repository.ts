@@ -9,6 +9,8 @@ import {
 import { slugToTitle } from "@/lib/slug";
 import { supabase } from "@/lib/supabase/client";
 
+export { isActiveFeatured } from "@/lib/is-active-featured";
+
 
 export type CategoryCard = {
     slug: CategorySlug;
@@ -32,7 +34,11 @@ export type SupabasePlace = {
     phone: string | null;
     website: string | null;
     maps_url: string | null;
+    featured: boolean | null;
+    featured_until: string | null;
 };
+
+export type PlaceVisibilityStatus = "available" | "hidden";
 
 export type AdminSupabasePlaceRow = {
     place_id: string;
@@ -41,6 +47,9 @@ export type AdminSupabasePlaceRow = {
     name: string;
     address: string | null;
     rating: number | null;
+    status: string;
+    featured: boolean;
+    featured_until: string | null;
 };
 
 export type AdminSupabasePlaceDetails = {
@@ -56,6 +65,9 @@ export type AdminSupabasePlaceDetails = {
     phone: string | null;
     website: string | null;
     maps_url: string | null;
+    status: string;
+    featured: boolean;
+    featured_until: string | null;
 };
 
 export type SupabasePlaceMutationInput = {
@@ -71,6 +83,9 @@ export type SupabasePlaceMutationInput = {
     phone: string | null;
     website: string | null;
     maps_url: string | null;
+    status?: string | null;
+    featured?: boolean | null;
+    featured_until?: string | null;
 };
 
 const CATEGORY_CARDS: CategoryCard[] = [
@@ -172,10 +187,11 @@ export async function getPlacesByCategoryFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
+        .eq("status", "available")
         .order("name", { ascending: true });
 
     if (error) {
@@ -195,11 +211,12 @@ export async function getPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
         .eq("place_id", placeId)
+        .eq("status", "available")
         .single();
 
     if (error) {
@@ -213,7 +230,7 @@ export async function getPlaceByIdFromSupabase(
 export async function getAllPlacesForAdminFromSupabase(): Promise<AdminSupabasePlaceRow[]> {
     const { data, error } = await supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, address, rating")
+        .select("place_id, city_slug, category_slug, name, address, rating, status, featured, featured_until")
         .order("city_slug", { ascending: true })
         .order("category_slug", { ascending: true })
         .order("name", { ascending: true });
@@ -232,7 +249,7 @@ export async function getAdminPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, city_slug, category_slug, name, description, address, schedule, image, rating, phone, website, maps_url",
+            "place_id, city_slug, category_slug, name, description, address, schedule, image, rating, phone, website, maps_url, status, featured, featured_until",
         )
         .eq("place_id", placeId)
         .single();
@@ -246,7 +263,26 @@ export async function getAdminPlaceByIdFromSupabase(
 }
 
 export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): Promise<void> {
-    const { error } = await supabase.from("places").insert([place]);
+    const {
+        status: _omitStatus,
+        featured: _omitFeatured,
+        featured_until: _omitFu,
+        ...rest
+    } = place;
+    const featured = typeof place.featured === "boolean" ? place.featured : false;
+    const featured_until =
+        place.featured_until === undefined ||
+        place.featured_until === null ||
+        place.featured_until === ""
+            ? null
+            : place.featured_until;
+    const row = {
+        ...rest,
+        status: place.status ?? "available",
+        featured,
+        featured_until,
+    };
+    const { error } = await supabase.from("places").insert([row]);
 
     if (error) {
         console.error("Supabase create place error:", error);
@@ -255,21 +291,35 @@ export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): 
 }
 
 export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): Promise<void> {
+    const updatePayload: Record<string, unknown> = {
+        name: place.name,
+        city_slug: place.city_slug,
+        category_slug: place.category_slug,
+        description: place.description,
+        address: place.address,
+        schedule: place.schedule,
+        image: place.image,
+        rating: place.rating,
+        phone: place.phone,
+        website: place.website,
+        maps_url: place.maps_url,
+    };
+    if (place.status !== undefined && place.status !== null) {
+        updatePayload.status = place.status;
+    }
+    if (typeof place.featured === "boolean") {
+        updatePayload.featured = place.featured;
+    }
+    if (place.featured_until !== undefined) {
+        updatePayload.featured_until =
+            place.featured_until === null || place.featured_until === ""
+                ? null
+                : place.featured_until;
+    }
+
     const { error } = await supabase
         .from("places")
-        .update({
-            name: place.name,
-            city_slug: place.city_slug,
-            category_slug: place.category_slug,
-            description: place.description,
-            address: place.address,
-            schedule: place.schedule,
-            image: place.image,
-            rating: place.rating,
-            phone: place.phone,
-            website: place.website,
-            maps_url: place.maps_url,
-        })
+        .update(updatePayload)
         .eq("place_id", place.place_id)
         .eq("city_slug", place.city_slug)
         .eq("category_slug", place.category_slug);
@@ -277,6 +327,44 @@ export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): 
     if (error) {
         console.error("Supabase update place error:", error);
         throw new Error("Failed to update place");
+    }
+}
+
+export async function updatePlaceStatusInSupabase(
+    placeId: string,
+    citySlug: string,
+    categorySlug: string,
+    status: PlaceVisibilityStatus,
+): Promise<void> {
+    const { error } = await supabase
+        .from("places")
+        .update({ status })
+        .eq("place_id", placeId)
+        .eq("city_slug", citySlug)
+        .eq("category_slug", categorySlug);
+
+    if (error) {
+        console.error("Supabase update place status error:", error);
+        throw new Error("Failed to update place status");
+    }
+}
+
+export async function updatePlaceFeaturedInSupabase(
+    placeId: string,
+    citySlug: string,
+    categorySlug: string,
+    featured: boolean,
+): Promise<void> {
+    const { error } = await supabase
+        .from("places")
+        .update({ featured })
+        .eq("place_id", placeId)
+        .eq("city_slug", citySlug)
+        .eq("category_slug", categorySlug);
+
+    if (error) {
+        console.error("Supabase update place featured error:", error);
+        throw new Error("Failed to update place featured");
     }
 }
 

@@ -75,16 +75,16 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
 
                 <Link
                     href={`/orase/${slug}`}
-                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                 >
                     ← Înapoi la {cityName}
                 </Link>
 
-                <h1 className="mb-4 text-center text-2xl font-semibold text-gray-900">
+                <h1 className="mb-3 text-center text-2xl font-semibold tracking-tight text-gray-900">
                     {categoryName}
                 </h1>
 
-                <p className="text-center text-sm text-gray-600">{placesCountLabel}</p>
+                <p className="text-center text-sm text-gray-500">{placesCountLabel}</p>
 
                 <div className="mt-6">
                     <PlacesList places={[...places]} slug={slug} category={category} />
