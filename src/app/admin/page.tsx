@@ -233,7 +233,6 @@ export default function AdminPage() {
                                 <th className="px-4 py-3">Oraș</th>
                                 <th className="px-4 py-3">Categorie</th>
                                 <th className="px-4 py-3">Adresă</th>
-                                <th className="px-4 py-3">Rating</th>
                                 <th className="px-4 py-3">Acțiuni</th>
                             </tr>
                         </thead>
@@ -244,7 +243,6 @@ export default function AdminPage() {
                                     <td className="px-4 py-3">{place.city_slug}</td>
                                     <td className="px-4 py-3">{place.category_slug}</td>
                                     <td className="px-4 py-3">{place.address ?? "-"}</td>
-                                    <td className="px-4 py-3">{place.rating ?? "-"}</td>
                                     <td className="px-4 py-3">
                                         <Link
                                             href={`/admin/edit/${place.place_id}`}

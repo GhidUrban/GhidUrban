@@ -1,44 +1,33 @@
 import Image from "next/image";
+import Link from "next/link";
 
 type PlaceCardProps = {
     name: string;
     image: string;
-    address: string;
-    rating: number;
-    description: string;
+    slug: string;
+    category: string;
+    placeId: string;
+    address?: string;
 };
 
-export function PlaceCard({
-    name,
-    image,
-    address,
-    rating,
-    description,
-}: PlaceCardProps) {
-    const stars = "⭐".repeat(Math.round(rating));
-
+export function PlaceCard({ name, image, slug, category, placeId, address }: PlaceCardProps) {
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md transition">
-            <figure>
+        <Link href={`/orase/${slug}/${category}/${placeId}`}>
+            <div className="block cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-md transition duration-200 hover:scale-105">
                 <Image
                     src={image}
                     alt={name}
                     width={600}
-                    height={300}
-                    className="w-full h-40 object-cover rounded-lg"
+                    height={400}
+                    className="h-40 w-full object-cover md:h-48"
                 />
-                <figcaption className="mt-3 text-center text-xl font-semibold text-gray-900">
-                    {name}
-                </figcaption>
-            </figure>
-
-            <p className="mt-2 text-gray-600">📍 {address}</p>
-
-            <p className="mt-2 text-yellow-500 text-lg">
-                {stars} <span className="text-gray-500 text-sm">({rating})</span>
-            </p>
-
-            <p className="mt-3 text-gray-700">{description}</p>
-        </div>
+                <div className="p-3">
+                    <h3 className="font-semibold text-gray-900">{name}</h3>
+                    {address?.trim() ? (
+                        <p className="text-sm text-gray-500">{address.trim()}</p>
+                    ) : null}
+                </div>
+            </div>
+        </Link>
     );
 }

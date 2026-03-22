@@ -22,10 +22,19 @@ type CategoriesApiResponseData = {
 export async function generateMetadata({ params }: CityPageProps): Promise<Metadata> {
     const { slug } = await params;
     const cityName = slugToTitle(slug);
+    const title = `${cityName} | GhidUrban`;
+    const description = `Ghid pentru ${cityName}: categorii de locuri și recomandări locale.`;
 
     return {
-        title: `Ghid Urban - ${cityName}`,
-        description: `Descoperă ${cityName}: restaurante, cafenele și locuri interesante.`,
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            locale: "ro_RO",
+            siteName: "GhidUrban",
+            type: "website",
+        },
     };
 }
 
@@ -48,47 +57,56 @@ export default async function CityPage({ params }: CityPageProps) {
     const categories = categoriesResponse.data.categories;
 
     return (
-        <main className="min-h-screen bg-gray-100 px-4 pb-6 pt-[5px]">
-            <div className="mb-6">
-                <Breadcrumb
-                    items={[
-                        { label: "Orașe", href: "/orase" },
-                        { label: cityName }
-                    ]}
-                />
-            </div>
+        <main className="min-h-screen bg-gray-100 py-4">
+            <div className="mx-auto max-w-4xl px-4">
+                <div className="mb-4">
+                    <Breadcrumb
+                        items={[
+                            { label: "Orașe", href: "/orase" },
+                            { label: cityName }
+                        ]}
+                    />
+                </div>
 
-            <div className="mx-auto max-w-5xl">
+                <Link
+                    href="/orase"
+                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+                >
+                    ← Înapoi la Orașe
+                </Link>
 
-                <h1 className="mb-8 mt-8 text-center text-3xl font-semibold text-gray-900 md:text-4xl">
+                <h1 className="mb-6 text-center text-2xl font-semibold text-gray-900">
                     {cityName}
                 </h1>
 
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-                    {categories.map((category) => (
+                    {categories.map((category) => {
+                        const categoryTitle = slugToTitle(category.category_slug);
+                        return (
                         <Link
                             key={category.category_slug}
                             href={`/orase/${slug}/${category.category_slug}`}
-                            className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+                            aria-label={`${categoryTitle}, vezi locurile`}
+                            className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100"
                         >
-                            <div className="relative overflow-hidden rounded-2xl">
+                            <div className="relative shrink-0 overflow-hidden rounded-t-2xl">
                                 <Image
                                     src={getImageByCategory(category.category_slug)}
-                                    alt={slugToTitle(category.category_slug)}
+                                    alt={categoryTitle}
                                     width={600}
-                                    height={300}
-                                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                                    height={400}
+                                    className="h-44 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02] md:h-48"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                                <div className="absolute inset-0 flex items-center justify-center p-4 text-center">
-                                    <span className="flex items-center gap-2 text-lg font-semibold text-white md:text-xl">
-                                        <span>{category.category_icon}</span>
-                                        <span>{slugToTitle(category.category_slug)}</span>
-                                    </span>
-                                </div>
+                            </div>
+                            <div className="flex flex-1 flex-col justify-center p-4 text-center">
+                                <span className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-900">
+                                    <span aria-hidden>{category.category_icon}</span>
+                                    <span>{categoryTitle}</span>
+                                </span>
                             </div>
                         </Link>
-                    ))}
+                        );
+                    })}
                 </div>
             </div>
         </main>

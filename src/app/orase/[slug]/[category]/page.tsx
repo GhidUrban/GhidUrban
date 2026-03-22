@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Breadcrumb from "@/components/Breadcrumb";
 import { PlacesList } from "@/components/PlaceLists";
 import { apiGet } from "@/lib/internal-api";
@@ -22,10 +23,19 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
     const { slug, category } = await params;
     const cityName = slugToTitle(slug);
     const categoryName = slugToTitle(category);
+    const title = `${categoryName} în ${cityName} | GhidUrban`;
+    const description = `Locuri din ${categoryName} în ${cityName}. Lista se actualizează periodic.`;
 
     return {
-        title: `${categoryName} în ${cityName} | Ghid Urban`,
-        description: `Vezi cele mai bune ${categoryName.toLowerCase()} din ${cityName}.`,
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            locale: "ro_RO",
+            siteName: "GhidUrban",
+            type: "website",
+        },
     };
 }
 
@@ -51,26 +61,34 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     const placesCountLabel = places.length === 1 ? "1 locație găsită" : `${places.length} locații găsite`;
 
     return (
-        <main className="min-h-screen bg-gray-100 px-4 pb-6 pt-[5px]">
-            <div className="mb-6">
-                <Breadcrumb
-                    items={[
-                        { label: "Orașe", href: "/orase" },
-                        { label: cityName, href: `/orase/${slug}` },
-                        { label: categoryName }
-                    ]}
-                />
-            </div>
+        <main className="min-h-screen bg-gray-100 py-4">
+            <div className="mx-auto max-w-4xl px-4">
+                <div className="mb-4">
+                    <Breadcrumb
+                        items={[
+                            { label: "Orașe", href: "/orase" },
+                            { label: cityName, href: `/orase/${slug}` },
+                            { label: categoryName }
+                        ]}
+                    />
+                </div>
 
-            <div className="mx-auto max-w-5xl">
+                <Link
+                    href={`/orase/${slug}`}
+                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90"
+                >
+                    ← Înapoi la {cityName}
+                </Link>
 
-                <h1 className="mb-4 mt-8 text-center text-3xl font-semibold text-gray-900 md:text-4xl">
+                <h1 className="mb-4 text-center text-2xl font-semibold text-gray-900">
                     {categoryName}
                 </h1>
 
-                <p className="mb-6 text-center text-sm font-medium text-gray-700">{placesCountLabel}</p>
+                <p className="text-center text-sm text-gray-600">{placesCountLabel}</p>
 
-                <PlacesList places={[...places]} slug={slug} category={category} />
+                <div className="mt-6">
+                    <PlacesList places={[...places]} slug={slug} category={category} />
+                </div>
             </div>
         </main>
     );

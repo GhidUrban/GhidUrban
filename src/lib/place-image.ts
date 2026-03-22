@@ -1,0 +1,37 @@
+import type { Place } from "@/data/places";
+
+export const PLACE_IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";
+
+export function localPlaceImagePath(
+  citySlug: string,
+  categorySlug: string,
+  placeId: string
+): string {
+  return `/images/places/${citySlug}/${categorySlug}/${placeId}.jpg`;
+}
+
+export function resolvePlaceImageSrc(
+  place: Pick<Place, "id" | "image">,
+  citySlug: string,
+  categorySlug: string
+): string {
+  const img = place.image?.trim();
+  if (img && img !== PLACE_IMAGE_PLACEHOLDER) {
+    return img;
+  }
+  return localPlaceImagePath(citySlug, categorySlug, place.id);
+}
+
+export function resolvePlaceImageAbsoluteUrl(
+  place: Pick<Place, "id" | "image">,
+  citySlug: string,
+  categorySlug: string,
+  baseUrl: string
+): string {
+  const src = resolvePlaceImageSrc(place, citySlug, categorySlug);
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return src;
+  }
+  const root = baseUrl.replace(/\/$/, "");
+  return `${root}${src}`;
+}
