@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import { generateToken } from "@/lib/auth";
@@ -18,10 +19,19 @@ export async function POST(req: Request) {
             );
         }
 
-        if (
-            username !== process.env.ADMIN_USERNAME ||
-            password !== process.env.ADMIN_PASSWORD
-        ) {
+        const expectedUsername = process.env.ADMIN_USERNAME;
+        const expectedPassword = process.env.ADMIN_PASSWORD;
+        const expectedPasswordHash = process.env.ADMIN_PASSWORD_HASH;
+
+        let passwordIsValid = false;
+
+        if (expectedPasswordHash) {
+            passwordIsValid = await bcrypt.compare(password, expectedPasswordHash);
+        } else if (expectedPassword) {
+            passwordIsValid = password === expectedPassword;
+        }
+
+        if (username !== expectedUsername || !passwordIsValid) {
             return NextResponse.json(
                 {
                     success: false,
