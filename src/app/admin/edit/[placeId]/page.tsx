@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { getImageByCategory } from "@/lib/image";
+
 const CITY_OPTIONS = [
     { value: "", label: "Selectează oraș" },
     { value: "baia-mare", label: "Baia Mare" },
@@ -20,6 +22,7 @@ const CATEGORY_OPTIONS = [
     { value: "cafenele", label: "Cafenele" },
     { value: "institutii", label: "Instituții" },
     { value: "cultural", label: "Cultural" },
+    { value: "natura", label: "Natură" },
     { value: "evenimente", label: "Evenimente" },
 ];
 
@@ -81,11 +84,6 @@ export default function EditAdminPlacePage() {
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
 
-    function getImageByCategory(_: string) {
-        return "/images/place-placeholder.jpg";
-    }
-
-
     useEffect(() => {
         async function loadPlace() {
             if (!placeId) {
@@ -110,7 +108,7 @@ export default function EditAdminPlacePage() {
                     category_slug: json.data.category_slug ?? "",
                     address: json.data.address ?? "",
                     schedule: json.data.schedule ?? "",
-                    image: json.data.image || "/images/place-placeholder.jpg",
+                    image: json.data.image || getImageByCategory(json.data.category_slug ?? ""),
                     rating: json.data.rating ? String(json.data.rating) : "",
                     phone: json.data.phone ?? "",
                     website: json.data.website ?? "",
@@ -302,10 +300,10 @@ export default function EditAdminPlacePage() {
                                 </p>
                                 <div>
                                     <img
-                                        src={formData.image}
+                                        src={formData.image || getImageByCategory(formData.category_slug)}
                                         alt="Preview imagine"
                                         onError={(e) => {
-                                            e.currentTarget.src = "/images/place-placeholder.jpg";
+                                            e.currentTarget.src = getImageByCategory(formData.category_slug);
                                         }}
                                         className="mt-3 h-24 w-full max-w-xs rounded-lg border border-gray-200 object-cover"
                                     />

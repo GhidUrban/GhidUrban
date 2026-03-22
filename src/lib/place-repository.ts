@@ -78,6 +78,7 @@ const CATEGORY_CARDS: CategoryCard[] = [
     { name: "Cafenele", slug: "cafenele", icon: "☕" },
     { name: "Instituții", slug: "institutii", icon: "🏛" },
     { name: "Cultural", slug: "cultural", icon: "🎭" },
+    { name: "Natură", slug: "natura", icon: "🌿" },
     { name: "Evenimente", slug: "evenimente", icon: "🎉" },
 ];
 

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { getImageByCategory } from "@/lib/image";
+
 const CITY_OPTIONS = [
     { value: "", label: "Selectează oraș" },
     { value: "baia-mare", label: "Baia Mare" },
@@ -20,6 +22,7 @@ const CATEGORY_OPTIONS = [
     { value: "cafenele", label: "Cafenele" },
     { value: "institutii", label: "Instituții" },
     { value: "cultural", label: "Cultural" },
+    { value: "natura", label: "Natură" },
     { value: "evenimente", label: "Evenimente" },
 ];
 
@@ -56,10 +59,6 @@ export default function NewAdminPlacePage() {
     const [formData, setFormData] = useState<NewPlaceFormData>(initialFormData);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
-
-    function getImageByCategory(_: string) {
-        return "/images/place-placeholder.jpg";
-    }
 
     function handleChange(
         event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -232,10 +231,10 @@ export default function NewAdminPlacePage() {
                             </p>
                             <div>
                                 <img
-                                    src={formData.image}
+                                    src={formData.image || getImageByCategory(formData.category_slug)}
                                     alt="Preview imagine"
                                     onError={(e) => {
-                                        e.currentTarget.src = "/images/place-placeholder.jpg";
+                                        e.currentTarget.src = getImageByCategory(formData.category_slug);
                                     }}
                                     className="mt-3 h-24 w-full max-w-xs rounded-lg border border-gray-200 object-cover"
                                 />

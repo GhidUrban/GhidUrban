@@ -95,6 +95,7 @@ export async function POST(req: Request) {
     }
 
     revalidatePath("/admin");
+    revalidatePath("/orase");
     revalidatePath(`/orase/${city_slug}`);
     revalidatePath(`/orase/${city_slug}/${category_slug}`);
     revalidatePath(`/orase/${city_slug}/${category_slug}/${place_id}`);
@@ -165,6 +166,7 @@ export async function PUT(req: Request) {
         }
 
         revalidatePath("/admin");
+        revalidatePath("/orase");
         revalidatePath(`/orase/${city_slug}`);
         revalidatePath(`/orase/${city_slug}/${category_slug}`);
         revalidatePath(`/orase/${city_slug}/${category_slug}/${place_id}`);
@@ -220,6 +222,7 @@ export async function DELETE(req: Request) {
         }
 
         revalidatePath("/admin");
+        revalidatePath("/orase");
         revalidatePath(`/orase/${city_slug}`);
         revalidatePath(`/orase/${city_slug}/${category_slug}`);
         revalidatePath(`/orase/${city_slug}/${category_slug}/${place_id}`);

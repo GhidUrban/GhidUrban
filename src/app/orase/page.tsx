@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
@@ -40,11 +41,23 @@ export default async function OrasePage() {
             <Link
               key={city.city_slug}
               href={`/orase/${city.city_slug}`}
-              className="flex min-h-28 items-center justify-center rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm"
+              className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
             >
-              <span className="text-base font-semibold text-gray-800/90">
-                {slugToTitle(city.city_slug)}
-              </span>
+              <div className="relative overflow-hidden rounded-t-2xl">
+                <Image
+                  src={`/images/${city.city_slug}/city.jpg`}
+                  alt={city.city_name}
+                  width={600}
+                  height={400}
+                  className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <span className="block text-base font-semibold text-white">
+                    {slugToTitle(city.city_slug)}
+                  </span>
+                </div>
+              </div>
             </Link>
           ))}
         </div>
@@ -79,15 +92,27 @@ export default async function OrasePage() {
               <Link
                 key={city.city_slug}
                 href={`/orase/${city.city_slug}`}
-                className="flex h-22 w-52 items-center justify-center rounded-3xl border border-gray-200 bg-gradient-to-b from-white to-gray-50 text-center shadow-sm transition hover:-translate-y-1 hover:scale-105 hover:shadow-lg hover:ring-2 hover:ring-gray-300/50"
+                className="group w-52 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
                 style={{
                   gridColumn: position.col,
                   gridRow: position.row,
                 }}
               >
-                <span className="text-lg font-semibold text-gray-800/90">
-                  {slugToTitle(city.city_slug)}
-                </span>
+                <div className="relative overflow-hidden rounded-t-2xl">
+                  <Image
+                    src={`/images/${city.city_slug}/city.jpg`}
+                    alt={city.city_name}
+                    width={600}
+                    height={400}
+                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <div className="absolute inset-x-0 bottom-0 p-4">
+                    <span className="block text-lg font-semibold text-white">
+                      {slugToTitle(city.city_slug)}
+                    </span>
+                  </div>
+                </div>
               </Link>
             );
           })}

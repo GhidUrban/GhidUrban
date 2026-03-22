@@ -136,7 +136,11 @@ export default async function PlacePage({ params }: PlacePageProps) {
 
                 <article className="mt-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm md:p-8">
                     <Image
-                        src={place.image}
+                        src={
+                            !place.image || place.image === "/images/place-placeholder.jpg"
+                                ? "/images/place-placeholder.jpg"
+                                : place.image
+                        }
                         alt={place.name}
                         width={1000}
                         height={500}

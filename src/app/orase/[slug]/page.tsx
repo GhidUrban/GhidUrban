@@ -1,8 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import Breadcrumb from "@/components/Breadcrumb";
 import { slugToTitle } from "@/lib/slug";
 import { apiGet } from "@/lib/internal-api";
+import { getImageByCategory } from "@/lib/image";
 import { notFound } from "next/navigation";
 type CityPageProps = {
     params: Promise<{ slug: string }>;
@@ -67,12 +69,24 @@ export default async function CityPage({ params }: CityPageProps) {
                         <Link
                             key={category.category_slug}
                             href={`/orase/${slug}/${category.category_slug}`}
-                            className="flex min-h-32 items-center justify-center rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm transition hover:scale-[1.02] hover:shadow-md"
+                            className="group overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
                         >
-                            <span className="flex items-center gap-2 text-lg font-semibold text-gray-800/90">
-                                <span>{category.category_icon}</span>
-                                <span>{slugToTitle(category.category_slug)}</span>
-                            </span>
+                            <div className="relative overflow-hidden rounded-2xl">
+                                <Image
+                                    src={getImageByCategory(category.category_slug)}
+                                    alt={slugToTitle(category.category_slug)}
+                                    width={600}
+                                    height={300}
+                                    className="h-44 w-full object-cover transition duration-300 group-hover:scale-105"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                                <div className="absolute inset-0 flex items-center justify-center p-4 text-center">
+                                    <span className="flex items-center gap-2 text-lg font-semibold text-white md:text-xl">
+                                        <span>{category.category_icon}</span>
+                                        <span>{slugToTitle(category.category_slug)}</span>
+                                    </span>
+                                </div>
+                            </div>
                         </Link>
                     ))}
                 </div>

@@ -30,6 +30,13 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
     });
   }, [places, search]);
 
+  function resolveImage(place: Place) {
+    if (!place.image || place.image === "/images/place-placeholder.jpg") {
+      return "/images/place-placeholder.jpg";
+    }
+    return place.image;
+  }
+
   return (
     <div className="mt-8">
       <div className="mb-6">
@@ -55,13 +62,15 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
               className="block rounded-2xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-md"
             >
               <div className="p-4 space-y-3">
-                <Image
-                  src={place.image}
-                  alt={place.name}
-                  width={600}
-                  height={300}
-                  className="h-40 w-full rounded-xl object-cover"
-                />
+                <div className="overflow-hidden rounded-lg">
+                  <Image
+                    src={resolveImage(place)}
+                    alt={place.name}
+                    width={600}
+                    height={300}
+                    className="h-48 w-full rounded-lg object-cover transition-transform duration-300 hover:scale-105"
+                  />
+                </div>
 
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-gray-900">{place.name}</h3>

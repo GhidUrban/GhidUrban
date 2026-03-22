@@ -51,6 +51,7 @@ export type CategorySlug =
     | "cafenele"
     | "institutii"
     | "cultural"
+    | "natura"
     | "evenimente";
 
 export type PlacesByCity = Record<CitySlug, Record<CategorySlug, Place[]>>;
@@ -92,6 +93,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("piata-libertatii-bm", "Piața Libertății", "Centrul Vechi, Baia Mare", 4.5, "Piață centrală pentru târguri și activări urbane.", "Program variabil", "0262 211 001", "https://www.baiamare.ro", "https://maps.google.com/?q=Piata+Libertatii+Baia+Mare"),
             makePlace("colonie-events-bm", "Colonia Pictorilor (Events)", "Strada Victoriei 21, Baia Mare", 4.6, "Vernisaje, ateliere și evenimente creative.", "Program variabil", "0262 213 321", "https://www.facebook.com/coloniapictorilor", "https://maps.google.com/?q=Colonia+Pictorilor+Baia+Mare"),
         ],
+        natura: [],
     },
     "cluj-napoca": {
         restaurante: [
@@ -129,6 +131,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("untold-festival", "UNTOLD Festival", "Cluj Arena, Cluj-Napoca", 4.8, "Unul dintre cele mai mari festivaluri de muzică din Europa.", "Sezonier", "0731 000 000", "https://untold.com", "https://maps.google.com/?q=UNTOLD+Festival+Cluj"),
             makePlace("piata-unirii-events-cluj", "Piața Unirii (Evenimente)", "Piața Unirii, Cluj-Napoca", 4.6, "Piață centrală folosită pentru târguri și evenimente urbane.", "Program variabil", "0264 596 030", "https://primariaclujnapoca.ro", "https://maps.google.com/?q=Piata+Unirii+Cluj"),
         ],
+        natura: [],
     },
     "bucuresti": {
         restaurante: [
@@ -166,6 +169,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("beraria-h", "Berăria H", "Șoseaua Kiseleff 32, București", 4.5, "Locație mare de concerte și evenimente live.", "Program variabil", "0725 345 345", "https://berariah.ro", "https://maps.google.com/?q=Beraria+H+Bucuresti"),
             makePlace("piata-constitutiei-events", "Piața Constituției (Evenimente)", "Piața Constituției, București", 4.6, "Spațiu urban pentru festivaluri, târguri și concerte.", "Program variabil", "021 305 5500", "https://www.pmb.ro", "https://maps.google.com/?q=Piata+Constitutiei+Bucuresti"),
         ],
+        natura: [],
     },
     "oradea": {
         restaurante: [
@@ -203,6 +207,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("teatrul-regina-maria-events", "Teatrul Regina Maria (Events)", "Piața Ferdinand 4-6, Oradea", 4.8, "Premiere și festivaluri de teatru pe parcursul anului.", "Program variabil", "0259 440 742", "https://www.teatrulreginamaria.ro", "https://maps.google.com/?q=Teatrul+Regina+Maria+Oradea"),
             makePlace("nufarul-festival", "Festivaluri Nufărul (zona centrală)", "Zona centrală, Oradea", 4.5, "Serii de evenimente locale cu muzică și activități stradale.", "Sezonier", "0259 437 000", "https://oradea.ro", "https://maps.google.com/?q=Evenimente+Oradea+Centru"),
         ],
+        natura: [],
     },
     "timisoara": {
         restaurante: [
@@ -240,6 +245,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("teatrul-national-events-tm", "Teatrul Național (Evenimente)", "Strada Mărășești 2, Timișoara", 4.8, "Festivaluri și premiere teatrale pe tot anul.", "Program variabil", "0256 201 117", "https://www.tntimisoara.com", "https://maps.google.com/?q=Teatrul+National+Timisoara"),
             makePlace("flight-festival", "Flight Festival", "Muzeul Satului Bănățean, Timișoara", 4.6, "Festival de muzică și tehnologie, foarte popular vara.", "Sezonier", "0740 300 111", "https://flight-festival.com", "https://maps.google.com/?q=Flight+Festival+Timisoara"),
         ],
+        natura: [],
     },
     "brasov": {
         restaurante: [
@@ -277,6 +283,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("reduta-events", "Centrul Cultural Reduta (Events)", "Strada Apollonia Hirscher 8, Brașov", 4.7, "Festivaluri locale și evenimente culturale.", "Program variabil", "0268 419 706", "https://centrulculturalreduta.ro", "https://maps.google.com/?q=Reduta+Brasov"),
             makePlace("junii-brasovului", "Parada Junilor Brașovului", "Șcheii Brașovului", 4.8, "Eveniment tradițional emblematic pentru Brașov.", "Sezonier", "0268 472 050", "https://www.brasovtourism.app", "https://maps.google.com/?q=Junii+Brasovului"),
         ],
+        natura: [],
     },
 };
 
@@ -341,6 +348,7 @@ export type CategorySlug =
     | "cafenele"
     | "institutii"
     | "cultural"
+    | "natura"
     | "evenimente";
 
 export type PlacesByCity = Record<CitySlug, Record<CategorySlug, Place[]>>;
@@ -419,6 +427,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("untold-festival", "UNTOLD Festival", "Cluj Arena, Cluj-Napoca", 4.8, "Unul dintre cele mai mari festivaluri de muzică din Europa.", "Sezonier", "0731 000 000", "https://untold.com", "https://maps.google.com/?q=UNTOLD+Festival+Cluj"),
             makePlace("piata-unirii-events-cluj", "Piața Unirii (Evenimente)", "Piața Unirii, Cluj-Napoca", 4.6, "Piață centrală folosită pentru târguri și evenimente urbane.", "Program variabil", "0264 596 030", "https://primariaclujnapoca.ro", "https://maps.google.com/?q=Piata+Unirii+Cluj"),
         ],
+        natura: [],
     },
     "bucuresti": {
         restaurante: [
@@ -456,6 +465,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("beraria-h", "Berăria H", "Șoseaua Kiseleff 32, București", 4.5, "Locație mare de concerte și evenimente live.", "Program variabil", "0725 345 345", "https://berariah.ro", "https://maps.google.com/?q=Beraria+H+Bucuresti"),
             makePlace("piata-constitutiei-events", "Piața Constituției (Evenimente)", "Piața Constituției, București", 4.6, "Spațiu urban pentru festivaluri, târguri și concerte.", "Program variabil", "021 305 5500", "https://www.pmb.ro", "https://maps.google.com/?q=Piata+Constitutiei+Bucuresti"),
         ],
+        natura: [],
     },
     "oradea": {
         restaurante: [
@@ -493,6 +503,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("teatrul-regina-maria-events", "Teatrul Regina Maria (Events)", "Piața Ferdinand 4-6, Oradea", 4.8, "Premiere și festivaluri de teatru pe parcursul anului.", "Program variabil", "0259 440 742", "https://www.teatrulreginamaria.ro", "https://maps.google.com/?q=Teatrul+Regina+Maria+Oradea"),
             makePlace("nufarul-festival", "Festivaluri Nufărul (zona centrală)", "Zona centrală, Oradea", 4.5, "Serii de evenimente locale cu muzică și activități stradale.", "Sezonier", "0259 437 000", "https://oradea.ro", "https://maps.google.com/?q=Evenimente+Oradea+Centru"),
         ],
+        natura: [],
     },
     "timisoara": {
         restaurante: [
@@ -530,6 +541,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("teatrul-national-events-tm", "Teatrul Național (Evenimente)", "Strada Mărășești 2, Timișoara", 4.8, "Festivaluri și premiere teatrale pe tot anul.", "Program variabil", "0256 201 117", "https://www.tntimisoara.com", "https://maps.google.com/?q=Teatrul+National+Timisoara"),
             makePlace("flight-festival", "Flight Festival", "Muzeul Satului Bănățean, Timișoara", 4.6, "Festival de muzică și tehnologie, foarte popular vara.", "Sezonier", "0740 300 111", "https://flight-festival.com", "https://maps.google.com/?q=Flight+Festival+Timisoara"),
         ],
+        natura: [],
     },
     "brasov": {
         restaurante: [
@@ -567,6 +579,7 @@ export const placesByCity: PlacesByCity = {
             makePlace("reduta-events", "Centrul Cultural Reduta (Events)", "Strada Apollonia Hirscher 8, Brașov", 4.7, "Festivaluri locale și evenimente culturale.", "Program variabil", "0268 419 706", "https://centrulculturalreduta.ro", "https://maps.google.com/?q=Reduta+Brasov"),
             makePlace("junii-brasovului", "Parada Junilor Brașovului", "Șcheii Brașovului", 4.8, "Eveniment tradițional emblematic pentru Brașov.", "Sezonier", "0268 472 050", "https://www.brasovtourism.app", "https://maps.google.com/?q=Junii+Brasovului"),
         ],
+        natura: [],
     },
 };
 
