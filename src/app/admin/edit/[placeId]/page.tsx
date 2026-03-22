@@ -172,7 +172,7 @@ export default function EditAdminPlacePage() {
                 return;
             }
 
-            alert("Salvat cu succes");
+            alert("Operațiune realizată cu succes");
             router.push("/admin");
             router.refresh();
         } catch {

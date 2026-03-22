@@ -105,7 +105,7 @@ export default function NewAdminPlacePage() {
                 return;
             }
 
-            alert("Salvat cu succes");
+            alert("Operațiune realizată cu succes");
             router.push("/admin");
             router.refresh();
         } catch {

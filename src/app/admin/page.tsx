@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type AdminPlacesApiResponseData = {
@@ -22,6 +23,7 @@ type AdminPlacesResponse = {
 };
 
 export default function AdminPage() {
+    const router = useRouter();
     const [places, setPlaces] = useState<AdminPlacesApiResponseData["places"]>([]);
     const [count, setCount] = useState(0);
     const [hasError, setHasError] = useState(false);
@@ -78,13 +80,19 @@ export default function AdminPage() {
                 return;
             }
 
-            alert("Șters cu succes");
+            alert("Operațiune realizată cu succes");
             window.location.reload();
         } catch {
             alert("A apărut o eroare");
         } finally {
             setDeletingId(null);
         }
+    }
+
+    async function handleLogout() {
+        await fetch("/api/admin/logout", { method: "POST" });
+        router.push("/admin/login");
+        router.refresh();
     }
 
     const cityOptions = Array.from(new Set(places.map((place) => place.city_slug))).sort();
@@ -143,13 +151,22 @@ export default function AdminPage() {
                 <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center justify-between gap-4">
                         <h1 className="text-3xl font-semibold text-gray-900">Admin panel</h1>
-                        <Link
-                            href="/admin/new"
-                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
-                        >
-                            <span>+</span>
-                            <span>Adaugă loc</span>
-                        </Link>
+                        <div className="flex items-center gap-3">
+                            <Link
+                                href="/admin/new"
+                                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-700"
+                            >
+                                <span>+</span>
+                                <span>Adaugă loc</span>
+                            </Link>
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                                Logout
+                            </button>
+                        </div>
                     </div>
                     <p className="mt-2 text-sm text-gray-600">Total locuri: {count}</p>
                 </div>
@@ -245,7 +262,11 @@ export default function AdminPage() {
                                                     place.category_slug
                                                 )
                                             }
-                                            className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700"
+                                            className={`px-3 py-1 rounded-md text-sm ${
+                                                deletingId === place.place_id
+                                                    ? "bg-gray-300 text-gray-600"
+                                                    : "bg-red-500 text-white hover:bg-red-600"
+                                            }`}
                                         >
                                             {deletingId === place.place_id ? "Se șterge..." : "Șterge"}
                                         </button>
