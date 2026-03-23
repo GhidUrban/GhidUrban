@@ -74,7 +74,7 @@ export default async function OrasePage() {
             >
               <div className="relative overflow-hidden rounded-t-2xl">
                 <Image
-                  src={`/images/${city.city_slug}/city.jpg`}
+                  src={`/images/places/${city.city_slug}/city.jpg`}
                   alt={city.city_name}
                   width={600}
                   height={400}
@@ -129,7 +129,7 @@ export default async function OrasePage() {
               >
                 <div className="relative overflow-hidden rounded-t-2xl">
                   <Image
-                    src={`/images/${city.city_slug}/city.jpg`}
+                    src={`/images/places/${city.city_slug}/city.jpg`}
                     alt={city.city_name}
                     width={600}
                     height={400}
