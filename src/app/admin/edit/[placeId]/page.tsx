@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
+import { adminImagePreviewSrc } from "@/lib/admin-form-image-preview";
 import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
 import { isActiveFeatured } from "@/lib/is-active-featured";
-import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
 
 function featuredUntilToIso(local: string): string | null {
     if (!local?.trim()) {
@@ -34,13 +35,6 @@ function isoToDatetimeLocalValue(iso: string | null | undefined): string {
     const h = String(d.getHours()).padStart(2, "0");
     const mi = String(d.getMinutes()).padStart(2, "0");
     return `${y}-${mo}-${day}T${h}:${mi}`;
-}
-
-function placeIdSlugFromName(rawName: string): string {
-    return rawName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
 }
 
 const CITY_OPTIONS = [
@@ -148,6 +142,8 @@ export default function EditAdminPlacePage() {
     const [errorMessage, setErrorMessage] = useState("");
     const [imageUploading, setImageUploading] = useState(false);
     const [imageUploadError, setImageUploadError] = useState("");
+    // Refetch previews when upload overwrites the same Storage URL string.
+    const [imagePreviewRevision, setImagePreviewRevision] = useState(0);
 
     function setQuickField<K extends keyof QuickImportDraft>(key: K, value: QuickImportDraft[K]) {
         setQuickImport((q) => ({ ...q, [key]: value }));
@@ -247,6 +243,10 @@ export default function EditAdminPlacePage() {
 
         const { name, value } = target;
 
+        if (name === "image") {
+            setImageUploadError("");
+        }
+
         if (name === "category_slug") {
             setFormData((current) => ({
                 ...current,
@@ -294,6 +294,7 @@ export default function EditAdminPlacePage() {
         }
 
         setFormData((current) => ({ ...current, image: result.publicUrl }));
+        setImagePreviewRevision((n) => n + 1);
     }
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -332,15 +333,19 @@ export default function EditAdminPlacePage() {
         }
     }
 
+    const imagePreviewSrc = useMemo(
+        () => adminImagePreviewSrc(formData.image),
+        [formData.image]
+    );
+
     const previewPlace = useMemo(() => {
-        const img = formData.image?.trim() || PLACE_IMAGE_PLACEHOLDER;
         return {
             id: placeId || "admin-preview-edit",
-            image: img,
+            image: imagePreviewSrc,
             name: formData.name.trim() || "Nume locație",
             address: formData.address.trim() || "Adresă",
         };
-    }, [placeId, formData.name, formData.address, formData.image]);
+    }, [placeId, formData.name, formData.address, imagePreviewSrc]);
 
     const previewActiveFeatured = useMemo(
         () =>
@@ -541,14 +546,14 @@ export default function EditAdminPlacePage() {
                                 <input
                                     type="text"
                                     name="image"
-                                    placeholder="/images/place-placeholder.jpg"
+                                    placeholder="/images/places/baia-mare/restaurante/pressco.jpg"
                                     value={formData.image}
                                     onChange={handleChange}
                                     autoComplete="off"
                                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                 />
                                 <p className="mt-1 text-xs text-gray-500">
-                                    Local path under <code className="rounded bg-gray-100 px-1">public</code> or a full image URL. Leave empty to save the default placeholder when you Save.
+                                    Path relative to <code className="rounded bg-gray-100 px-1">public</code> or a full URL. Empty saves the default placeholder.
                                 </p>
                                 <div className="mt-2">
                                     <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -569,13 +574,9 @@ export default function EditAdminPlacePage() {
                                     ) : null}
                                 </div>
                                 <div className="mt-3">
-                                    <img
-                                        key={formData.image.trim() || PLACE_IMAGE_PLACEHOLDER}
-                                        src={formData.image.trim() || PLACE_IMAGE_PLACEHOLDER}
-                                        alt=""
-                                        onError={(e) => {
-                                            e.currentTarget.src = PLACE_IMAGE_PLACEHOLDER;
-                                        }}
+                                    <AdminImageFieldThumb
+                                        imagePreviewSrc={imagePreviewSrc}
+                                        imagePreviewRevision={imagePreviewRevision}
                                         className="h-28 w-full max-w-xs rounded-lg border border-gray-200 object-cover"
                                     />
                                 </div>
@@ -727,6 +728,7 @@ export default function EditAdminPlacePage() {
                                     <p className="text-sm text-gray-500">Loading preview…</p>
                                 ) : (
                                     <PublicPlaceCard
+                                        key={`admin-card-${imagePreviewRevision}-${imagePreviewSrc}`}
                                         place={previewPlace}
                                         citySlug={previewCitySlug}
                                         categorySlug={previewCategorySlug}

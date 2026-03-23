@@ -6,6 +6,7 @@ import {
     updatePlaceInSupabase,
     updatePlaceStatusInSupabase,
 } from "@/lib/place-repository";
+import { placeIdSlugFromName } from "@/lib/slug";
 import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
@@ -88,10 +89,7 @@ export async function POST(req: Request) {
         );
     }
 
-    const place_id = name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+    const place_id = placeIdSlugFromName(String(name));
 
     try {
         const featuredBool = Boolean(featured);

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Place } from "@/data/places";
 import {
   PLACE_IMAGE_PLACEHOLDER,
@@ -27,9 +27,14 @@ export function PlaceImage({
   className,
   priority,
 }: PlaceImageProps) {
-  const [src, setSrc] = useState(() =>
-    resolvePlaceImageSrc(place, citySlug, categorySlug)
-  );
+  const resolved = resolvePlaceImageSrc(place, citySlug, categorySlug);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setLoadFailed(false);
+  }, [resolved]);
+
+  const src = loadFailed ? PLACE_IMAGE_PLACEHOLDER : resolved;
 
   return (
     <Image
@@ -39,7 +44,7 @@ export function PlaceImage({
       height={height}
       className={className}
       priority={priority}
-      onError={() => setSrc(PLACE_IMAGE_PLACEHOLDER)}
+      onError={() => setLoadFailed(true)}
     />
   );
 }

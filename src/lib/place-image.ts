@@ -16,10 +16,13 @@ export function resolvePlaceImageSrc(
   categorySlug: string
 ): string {
   const img = place.image?.trim();
-  if (img && img !== PLACE_IMAGE_PLACEHOLDER) {
-    return img;
+  if (!img) {
+    return localPlaceImagePath(citySlug, categorySlug, place.id);
   }
-  return localPlaceImagePath(citySlug, categorySlug, place.id);
+  if (img === PLACE_IMAGE_PLACEHOLDER) {
+    return PLACE_IMAGE_PLACEHOLDER;
+  }
+  return img;
 }
 
 export function resolvePlaceImageAbsoluteUrl(

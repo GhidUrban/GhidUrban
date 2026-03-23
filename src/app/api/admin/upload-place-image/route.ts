@@ -1,7 +1,10 @@
 import { verifyToken } from "@/lib/auth";
+import { getSupabaseStorageEnv } from "@/lib/supabase-storage-env";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -29,16 +32,26 @@ export async function POST(req: Request) {
             );
         }
 
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        const bucket = process.env.SUPABASE_PLACE_IMAGES_BUCKET || "place-images";
+        const { url: supabaseUrl, serviceRoleKey: serviceKey } = getSupabaseStorageEnv();
+        const bucket =
+            process.env["SUPABASE_PLACE_IMAGES_BUCKET"]?.trim() || "places";
 
-        if (!supabaseUrl?.trim() || !serviceKey?.trim()) {
+        if (!supabaseUrl) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    message: "Storage not configured: missing NEXT_PUBLIC_SUPABASE_URL",
+                    data: null,
+                },
+                { status: 503 },
+            );
+        }
+        if (!serviceKey) {
             return NextResponse.json(
                 {
                     success: false,
                     message:
-                        "Storage not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY",
+                        "Storage not configured: missing SUPABASE_SERVICE_ROLE_KEY (server-only; restart dev after adding it)",
                     data: null,
                 },
                 { status: 503 },
@@ -81,7 +94,7 @@ export async function POST(req: Request) {
         }
 
         const ext = extFromMime(mime);
-        const objectPath = `places/${city_slug}/${category_slug}/${place_id}.${ext}`;
+        const objectPath = `${city_slug}/${category_slug}/${place_id}.${ext}`;
 
         const supabase = createClient(supabaseUrl, serviceKey, {
             auth: { persistSession: false, autoRefreshToken: false },
@@ -89,13 +102,18 @@ export async function POST(req: Request) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
 
+        console.log("Supabase URL:", supabaseUrl);
+        console.log("Service key exists:", serviceKey ? "YES" : "NO");
+        console.log("Using bucket:", bucket);
+        console.log("Upload path:", objectPath);
+
         const { error: uploadError } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
             contentType: mime,
             upsert: true,
         });
 
         if (uploadError) {
-            console.error("Supabase storage upload error:", uploadError);
+            console.error("Supabase storage upload error FULL:", uploadError);
             return NextResponse.json(
                 { success: false, message: uploadError.message || "Upload failed", data: null },
                 { status: 500 },

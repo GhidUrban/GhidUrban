@@ -4,17 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
+import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
+import { adminImagePreviewSrc } from "@/lib/admin-form-image-preview";
+import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
 import { isActiveFeatured } from "@/lib/is-active-featured";
-import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
-
-function placeIdSlugFromName(rawName: string): string {
-    return rawName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-}
+import { placeIdSlugFromName } from "@/lib/slug";
 
 function featuredUntilToIso(local: string): string | null {
     if (!local?.trim()) {
@@ -105,6 +100,8 @@ export default function NewAdminPlacePage() {
     const [errorMessage, setErrorMessage] = useState("");
     const [imageUploading, setImageUploading] = useState(false);
     const [imageUploadError, setImageUploadError] = useState("");
+    // Refetch previews when upload overwrites the same Storage URL string.
+    const [imagePreviewRevision, setImagePreviewRevision] = useState(0);
 
     function setQuickField<K extends keyof QuickImportDraft>(key: K, value: QuickImportDraft[K]) {
         setQuickImport((q) => ({ ...q, [key]: value }));
@@ -161,6 +158,10 @@ export default function NewAdminPlacePage() {
 
         const { name, value } = target;
 
+        if (name === "image") {
+            setImageUploadError("");
+        }
+
         if (name === "category_slug") {
             setFormData((current) => ({
                 ...current,
@@ -210,6 +211,7 @@ export default function NewAdminPlacePage() {
         }
 
         setFormData((current) => ({ ...current, image: result.publicUrl }));
+        setImagePreviewRevision((n) => n + 1);
     }
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -247,15 +249,19 @@ export default function NewAdminPlacePage() {
         }
     }
 
+    const imagePreviewSrc = useMemo(
+        () => adminImagePreviewSrc(formData.image),
+        [formData.image]
+    );
+
     const previewPlace = useMemo(() => {
-        const img = formData.image?.trim() || PLACE_IMAGE_PLACEHOLDER;
         return {
             id: "admin-preview-new",
-            image: img,
+            image: imagePreviewSrc,
             name: formData.name.trim() || "Nume locație",
             address: formData.address.trim() || "Adresă",
         };
-    }, [formData.name, formData.address, formData.image]);
+    }, [formData.name, formData.address, imagePreviewSrc]);
 
     const previewActiveFeatured = useMemo(
         () =>
@@ -483,13 +489,9 @@ export default function NewAdminPlacePage() {
                                 ) : null}
                             </div>
                             <div className="mt-3">
-                                <img
-                                    key={formData.image.trim() || PLACE_IMAGE_PLACEHOLDER}
-                                    src={formData.image.trim() || PLACE_IMAGE_PLACEHOLDER}
-                                    alt=""
-                                    onError={(e) => {
-                                        e.currentTarget.src = PLACE_IMAGE_PLACEHOLDER;
-                                    }}
+                                <AdminImageFieldThumb
+                                    imagePreviewSrc={imagePreviewSrc}
+                                    imagePreviewRevision={imagePreviewRevision}
                                     className="h-28 w-full max-w-xs rounded-lg border border-gray-200 object-cover"
                                 />
                             </div>
@@ -637,6 +639,7 @@ export default function NewAdminPlacePage() {
                             </p>
                             <div className="mt-4 max-w-sm">
                                 <PublicPlaceCard
+                                    key={`admin-card-${imagePreviewRevision}-${imagePreviewSrc}`}
                                     place={previewPlace}
                                     citySlug={previewCitySlug}
                                     categorySlug={previewCategorySlug}
