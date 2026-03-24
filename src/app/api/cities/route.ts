@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { getAllCitiesFromSupabase } from "@/lib/place-repository";
+import { getPublicCitiesFromSupabase } from "@/lib/place-repository";
 import { NextResponse } from "next/server";
 
 function errorResponse(message: string, status: number) {
@@ -15,7 +15,7 @@ function errorResponse(message: string, status: number) {
 
 export async function GET() {
     try {
-        const supabaseCities = await getAllCitiesFromSupabase();
+        const supabaseCities = await getPublicCitiesFromSupabase();
         const cities = supabaseCities.map((city) => ({
             city_slug: city.slug,
             city_name: city.name,

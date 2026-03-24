@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Breadcrumb from "@/components/Breadcrumb";
+import NearbyRecommendationsSection from "@/components/NearbyRecommendationsSection";
 import { PlacesList } from "@/components/PlaceLists";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
@@ -83,6 +84,8 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
                 <h1 className="mb-3 text-center text-2xl font-semibold tracking-tight text-gray-900">
                     {categoryName}
                 </h1>
+
+                <NearbyRecommendationsSection citySlug={slug} categorySlug={category} />
 
                 <p className="text-center text-sm text-gray-500">{placesCountLabel}</p>
 

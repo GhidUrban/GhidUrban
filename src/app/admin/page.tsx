@@ -248,13 +248,33 @@ export default function AdminPage() {
                 <div className="mx-auto max-w-6xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <h1 className="text-3xl font-semibold text-gray-900">Admin panel</h1>
-                        <Link
-                            href="/admin/new"
-                            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 sm:self-auto"
-                        >
-                            <span aria-hidden>+</span>
-                            <span>Add place</span>
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                            <Link
+                                href="/admin/new"
+                                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700"
+                            >
+                                <span aria-hidden>+</span>
+                                <span>Add place</span>
+                            </Link>
+                            <Link
+                                href="/admin/import"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Import locații
+                            </Link>
+                            <Link
+                                href="/admin/cities"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Orașe
+                            </Link>
+                            <Link
+                                href="/admin/categories"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Categorii
+                            </Link>
+                        </div>
                     </div>
                     <p className="mt-3 text-gray-600">Could not load places.</p>
                 </div>
@@ -275,6 +295,24 @@ export default function AdminPage() {
                             >
                                 <span aria-hidden>+</span>
                                 <span>Add place</span>
+                            </Link>
+                            <Link
+                                href="/admin/import"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Import locații
+                            </Link>
+                            <Link
+                                href="/admin/cities"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Orașe
+                            </Link>
+                            <Link
+                                href="/admin/categories"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                            >
+                                Categorii
                             </Link>
                             <button
                                 type="button"

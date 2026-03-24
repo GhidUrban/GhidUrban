@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { isActiveFeatured } from "@/lib/is-active-featured";
+import { resolveListing } from "@/lib/listing-plan";
 import {
     getPlaceByIdFromSupabase,
     isValidCategorySlug,
@@ -57,6 +57,14 @@ export async function GET(request: Request) {
 
         const featured = Boolean(supabasePlace.featured);
         const featured_until = supabasePlace.featured_until ?? null;
+        const plan_type = supabasePlace.plan_type ?? "free";
+        const plan_expires_at = supabasePlace.plan_expires_at ?? null;
+        const { activeFeatured, activePromoted, listingTierRank } = resolveListing({
+            featured,
+            featured_until,
+            plan_type,
+            plan_expires_at,
+        });
         const place = {
             id: supabasePlace.place_id,
             name: supabasePlace.name,
@@ -70,7 +78,9 @@ export async function GET(request: Request) {
             mapsUrl: supabasePlace.maps_url ?? "",
             featured,
             featured_until,
-            activeFeatured: isActiveFeatured({ featured, featured_until }),
+            activeFeatured,
+            activePromoted,
+            listingTierRank,
         };
 
         return ok("Place fetched successfully", {

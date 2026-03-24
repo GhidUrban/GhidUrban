@@ -32,6 +32,17 @@ function featuredUntilFromBody(raw: unknown): string | null | undefined {
     return d.toISOString();
 }
 
+function planTypeFromBody(raw: unknown): "free" | "promoted" | "featured" {
+    if (typeof raw !== "string") {
+        return "free";
+    }
+    const v = raw.toLowerCase().trim();
+    if (v === "promoted" || v === "featured" || v === "free") {
+        return v;
+    }
+    return "free";
+}
+
 export async function GET() {
     try {
         const places = await getAllPlacesForAdminFromSupabase();
@@ -76,6 +87,8 @@ export async function POST(req: Request) {
         status,
         featured,
         featured_until,
+        plan_type,
+        plan_expires_at,
     } = body;
 
     if (!name || !city_slug || !category_slug) {
@@ -101,6 +114,8 @@ export async function POST(req: Request) {
         const statusForCreate =
             status === "available" || status === "hidden" ? status : "available";
 
+        const planExpiresCreate = featuredUntilFromBody(plan_expires_at);
+
         await createPlaceInSupabase({
             place_id,
             city_slug,
@@ -117,6 +132,9 @@ export async function POST(req: Request) {
             status: statusForCreate,
             featured: featuredBool,
             featured_until: featuredUntilForCreate,
+            plan_type: planTypeFromBody(plan_type),
+            plan_expires_at:
+                planExpiresCreate === undefined ? null : planExpiresCreate,
         });
     } catch (error) {
         console.error("Insert error:", error);
@@ -166,6 +184,8 @@ export async function PUT(req: Request) {
             status,
             featured,
             featured_until,
+            plan_type,
+            plan_expires_at,
         } = body;
 
         if (
@@ -265,6 +285,8 @@ export async function PUT(req: Request) {
             const featuredUntilForUpdate =
                 featuredVal === false ? null : fuParsed;
 
+            const planExpiresParsed = featuredUntilFromBody(plan_expires_at);
+
             await updatePlaceInSupabase({
                 place_id,
                 city_slug,
@@ -282,6 +304,9 @@ export async function PUT(req: Request) {
                     status === "available" || status === "hidden" ? status : undefined,
                 featured: featuredVal,
                 featured_until: featuredUntilForUpdate,
+                plan_type:
+                    typeof plan_type === "string" ? planTypeFromBody(plan_type) : undefined,
+                plan_expires_at: planExpiresParsed,
             });
         } catch (error) {
             console.error("Update error:", error);

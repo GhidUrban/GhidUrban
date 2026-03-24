@@ -6,10 +6,13 @@ import {
     type CitySlug,
     type Place,
 } from "@/data/places";
-import { slugToTitle } from "@/lib/slug";
+import { isActiveFeatured } from "@/lib/is-active-featured";
+import { normalizeListingPlanType, resolveListing } from "@/lib/listing-plan";
+import { haversineKm } from "@/lib/haversine-km";
+import { placeIdSlugFromName, slugToTitle } from "@/lib/slug";
 import { supabase } from "@/lib/supabase/client";
 
-export { isActiveFeatured } from "@/lib/is-active-featured";
+export { isActiveFeatured };
 
 
 export type CategoryCard = {
@@ -21,6 +24,41 @@ export type CategoryCard = {
 export type SupabaseCity = {
     slug: string;
     name: string;
+};
+
+export type AdminCityRow = {
+    slug: string;
+    name: string;
+    image: string | null;
+    is_active: boolean;
+    sort_order: number;
+};
+
+export type AdminCategoryRow = {
+    city_slug: string;
+    category_slug: string;
+    category_name: string;
+    image: string | null;
+    icon: string | null;
+    is_active: boolean;
+    sort_order: number;
+};
+
+export type UpdateCityInput = {
+    name?: string;
+    slug?: string;
+    image?: string | null;
+    is_active?: boolean;
+    sort_order?: number;
+};
+
+export type UpdateCategoryInput = {
+    category_name?: string;
+    category_slug_new?: string;
+    image?: string | null;
+    icon?: string | null;
+    is_active?: boolean;
+    sort_order?: number;
 };
 
 export type SupabasePlace = {
@@ -36,6 +74,8 @@ export type SupabasePlace = {
     maps_url: string | null;
     featured: boolean | null;
     featured_until: string | null;
+    plan_type: string;
+    plan_expires_at: string | null;
 };
 
 export type PlaceVisibilityStatus = "available" | "hidden";
@@ -68,6 +108,8 @@ export type AdminSupabasePlaceDetails = {
     status: string;
     featured: boolean;
     featured_until: string | null;
+    plan_type: string;
+    plan_expires_at: string | null;
 };
 
 export type SupabasePlaceMutationInput = {
@@ -86,6 +128,12 @@ export type SupabasePlaceMutationInput = {
     status?: string | null;
     featured?: boolean | null;
     featured_until?: string | null;
+    plan_type?: string | null;
+    plan_expires_at?: string | null;
+    external_source?: string | null;
+    external_place_id?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 };
 
 const CATEGORY_CARDS: CategoryCard[] = [
@@ -115,10 +163,13 @@ export function getAllCitySlugs(): CitySlug[] {
     return Object.keys(placesByCity) as CitySlug[];
 }
 
-export async function getAllCitiesFromSupabase(): Promise<SupabaseCity[]> {
+/** Active cities for public listing: sort_order, then name. */
+export async function getPublicCitiesFromSupabase(): Promise<SupabaseCity[]> {
     const { data, error } = await supabase
         .from("cities")
         .select("slug, name")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true })
         .order("name", { ascending: true });
 
     if (error) {
@@ -126,6 +177,229 @@ export async function getAllCitiesFromSupabase(): Promise<SupabaseCity[]> {
     }
 
     return data ?? [];
+}
+
+export async function getAllCitiesForAdminFromSupabase(): Promise<AdminCityRow[]> {
+    const { data, error } = await supabase
+        .from("cities")
+        .select("slug, name, image, is_active, sort_order")
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+
+    if (error) {
+        throw error;
+    }
+
+    return (data ?? []) as AdminCityRow[];
+}
+
+export async function getCategoriesForAdminByCityFromSupabase(
+    city_slug: string,
+): Promise<AdminCategoryRow[]> {
+    const { data, error } = await supabase
+        .from("categories")
+        .select(
+            "city_slug, category_slug, category_name, image, icon, is_active, sort_order",
+        )
+        .eq("city_slug", city_slug)
+        .order("sort_order", { ascending: true })
+        .order("category_name", { ascending: true });
+
+    if (error) {
+        throw error;
+    }
+
+    return (data ?? []) as AdminCategoryRow[];
+}
+
+export async function updateCityInSupabase(
+    city_slug: string,
+    updates: UpdateCityInput,
+): Promise<{ slug: string }> {
+    const trimmedOld = city_slug?.trim();
+    if (!trimmedOld) {
+        throw new Error("Lipsește slug-ul orașului.");
+    }
+
+    let newSlug =
+        updates.slug !== undefined && updates.slug !== null
+            ? updates.slug.trim()
+            : trimmedOld;
+    if (!newSlug || !isSafeCitySlug(newSlug)) {
+        throw new Error("Slug invalid. Folosiți litere mici, cifre și cratime.");
+    }
+
+    if (newSlug !== trimmedOld) {
+        const { data: conflict, error: conflictErr } = await supabase
+            .from("cities")
+            .select("slug")
+            .eq("slug", newSlug)
+            .limit(1);
+
+        if (conflictErr) {
+            console.error("Supabase city slug conflict check error:", conflictErr);
+            throw new Error("Nu s-a putut verifica slug-ul.");
+        }
+        if ((conflict?.length ?? 0) > 0) {
+            throw new Error("Există deja un oraș cu acest slug.");
+        }
+
+        const { error: placesErr } = await supabase
+            .from("places")
+            .update({ city_slug: newSlug })
+            .eq("city_slug", trimmedOld);
+
+        if (placesErr) {
+            console.error("Supabase update places city_slug error:", placesErr);
+            throw new Error("Nu s-au putut actualiza locurile pentru noul slug.");
+        }
+
+        const { error: catsErr } = await supabase
+            .from("categories")
+            .update({ city_slug: newSlug })
+            .eq("city_slug", trimmedOld);
+
+        if (catsErr) {
+            console.error("Supabase update categories city_slug error:", catsErr);
+            throw new Error("Nu s-au putut actualiza categoriile pentru noul slug.");
+        }
+    }
+
+    const row: Record<string, unknown> = {};
+    if (updates.name !== undefined) {
+        const n = updates.name?.trim();
+        if (!n) {
+            throw new Error("Numele orașului nu poate fi gol.");
+        }
+        row.name = n;
+    }
+    if (updates.image !== undefined) {
+        row.image =
+            updates.image === null || updates.image === "" ? null : String(updates.image).trim();
+    }
+    if (updates.is_active !== undefined) {
+        row.is_active = Boolean(updates.is_active);
+    }
+    if (updates.sort_order !== undefined) {
+        const so = Number(updates.sort_order);
+        if (!Number.isFinite(so) || !Number.isInteger(so)) {
+            throw new Error("sort_order trebuie să fie număr întreg.");
+        }
+        row.sort_order = so;
+    }
+    if (newSlug !== trimmedOld) {
+        row.slug = newSlug;
+    }
+
+    if (Object.keys(row).length === 0) {
+        return { slug: newSlug };
+    }
+
+    const { error } = await supabase.from("cities").update(row).eq("slug", trimmedOld);
+
+    if (error) {
+        console.error("Supabase update city error:", error);
+        throw new Error("Nu s-a putut actualiza orașul.");
+    }
+
+    return { slug: newSlug };
+}
+
+export async function updateCategoryInSupabase(
+    city_slug: string,
+    category_slug: string,
+    updates: UpdateCategoryInput,
+): Promise<{ category_slug: string }> {
+    const c = city_slug?.trim();
+    const oldCat = category_slug?.trim();
+    if (!c || !oldCat) {
+        throw new Error("Lipsește orașul sau categoria.");
+    }
+
+    let newCatSlug =
+        updates.category_slug_new !== undefined && updates.category_slug_new !== null
+            ? updates.category_slug_new.trim()
+            : oldCat;
+    if (!newCatSlug || !isSafeCitySlug(newCatSlug)) {
+        throw new Error("Slug categorie invalid. Folosiți litere mici, cifre și cratime.");
+    }
+
+    if (newCatSlug !== oldCat) {
+        const { data: conflict, error: conflictErr } = await supabase
+            .from("categories")
+            .select("category_slug")
+            .eq("city_slug", c)
+            .eq("category_slug", newCatSlug)
+            .limit(1);
+
+        if (conflictErr) {
+            console.error("Supabase category slug conflict check error:", conflictErr);
+            throw new Error("Nu s-a putut verifica slug-ul categoriei.");
+        }
+        if ((conflict?.length ?? 0) > 0) {
+            throw new Error("Există deja o categorie cu acest slug în acest oraș.");
+        }
+
+        const { error: placesErr } = await supabase
+            .from("places")
+            .update({ category_slug: newCatSlug })
+            .eq("city_slug", c)
+            .eq("category_slug", oldCat);
+
+        if (placesErr) {
+            console.error("Supabase update places category_slug error:", placesErr);
+            throw new Error("Nu s-au putut actualiza locurile pentru noul slug de categorie.");
+        }
+    }
+
+    const row: Record<string, unknown> = {};
+    if (updates.category_name !== undefined) {
+        const n = updates.category_name?.trim();
+        if (!n) {
+            throw new Error("Numele categoriei nu poate fi gol.");
+        }
+        row.category_name = n;
+    }
+    if (updates.image !== undefined) {
+        row.image =
+            updates.image === null || updates.image === "" ? null : String(updates.image).trim();
+    }
+    if (updates.icon !== undefined) {
+        row.icon =
+            updates.icon === null || updates.icon === ""
+                ? null
+                : String(updates.icon).trim();
+    }
+    if (updates.is_active !== undefined) {
+        row.is_active = Boolean(updates.is_active);
+    }
+    if (updates.sort_order !== undefined) {
+        const so = Number(updates.sort_order);
+        if (!Number.isFinite(so) || !Number.isInteger(so)) {
+            throw new Error("sort_order trebuie să fie număr întreg.");
+        }
+        row.sort_order = so;
+    }
+    if (newCatSlug !== oldCat) {
+        row.category_slug = newCatSlug;
+    }
+
+    if (Object.keys(row).length === 0) {
+        return { category_slug: newCatSlug };
+    }
+
+    const { error } = await supabase
+        .from("categories")
+        .update(row)
+        .eq("city_slug", c)
+        .eq("category_slug", oldCat);
+
+    if (error) {
+        console.error("Supabase update category error:", error);
+        throw new Error("Nu s-a putut actualiza categoria.");
+    }
+
+    return { category_slug: newCatSlug };
 }
 
 export function getPlacesByCategory(city: CitySlug, category: CategorySlug): Place[] {
@@ -187,7 +461,7 @@ export async function getPlacesByCategoryFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -211,7 +485,7 @@ export async function getPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -225,6 +499,119 @@ export async function getPlaceByIdFromSupabase(
     }
 
     return data;
+}
+
+export type RecommendedPlaceRow = {
+    place_id: string;
+    city_slug: string;
+    category_slug: string;
+    name: string;
+    address: string | null;
+    image: string | null;
+    rating: number | null;
+    maps_url: string | null;
+    distance_km: number;
+    active_featured: boolean;
+    active_promoted: boolean;
+    listing_tier_rank: number;
+};
+
+type RecommendationOptions = {
+    radius_km: number;
+    city_slug?: string;
+    category_slug?: string;
+};
+
+const RECOMMENDATIONS_FETCH_LIMIT = 400;
+
+/**
+ * Available places with coordinates within radius (unsorted; API applies order and limit).
+ */
+export async function getNearbyRecommendedPlacesFromSupabase(
+    userLat: number,
+    userLng: number,
+    options: RecommendationOptions,
+): Promise<RecommendedPlaceRow[]> {
+    const radius = Math.max(options.radius_km, 0.1);
+    const pad = 1.12;
+    const dLat = (radius * pad) / 111;
+    const cosLat = Math.cos((userLat * Math.PI) / 180);
+    const dLng = Math.abs(cosLat) < 0.05 ? 180 : (radius * pad) / (111 * cosLat);
+
+    let query = supabase
+        .from("places")
+        .select(
+            "place_id, city_slug, category_slug, name, address, image, rating, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
+        )
+        .eq("status", "available")
+        .not("latitude", "is", null)
+        .not("longitude", "is", null)
+        .gte("latitude", userLat - dLat)
+        .lte("latitude", userLat + dLat)
+        .gte("longitude", userLng - dLng)
+        .lte("longitude", userLng + dLng)
+        .limit(RECOMMENDATIONS_FETCH_LIMIT);
+
+    const city = options.city_slug?.trim();
+    if (city) {
+        query = query.eq("city_slug", city);
+    }
+    const category = options.category_slug?.trim();
+    if (category) {
+        query = query.eq("category_slug", category);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error("Supabase recommendations query error:", error);
+        throw new Error("Failed to fetch recommendations");
+    }
+
+    const rows = data ?? [];
+    const out: RecommendedPlaceRow[] = [];
+
+    for (const raw of rows) {
+        const lat = Number(raw.latitude);
+        const lng = Number(raw.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            continue;
+        }
+        const distance_km = haversineKm(userLat, userLng, lat, lng);
+        if (distance_km > radius) {
+            continue;
+        }
+        const featured = Boolean(raw.featured);
+        const featured_until = raw.featured_until ?? null;
+        const plan_type = raw.plan_type ?? "free";
+        const plan_expires_at = raw.plan_expires_at ?? null;
+        const {
+            activeFeatured: active_featured,
+            activePromoted: active_promoted,
+            listingTierRank: listing_tier_rank,
+        } = resolveListing({
+            featured,
+            featured_until,
+            plan_type,
+            plan_expires_at,
+        });
+        out.push({
+            place_id: raw.place_id,
+            city_slug: raw.city_slug,
+            category_slug: raw.category_slug,
+            name: raw.name,
+            address: raw.address,
+            image: raw.image,
+            rating: raw.rating,
+            maps_url: raw.maps_url,
+            distance_km,
+            active_featured,
+            active_promoted,
+            listing_tier_rank,
+        });
+    }
+
+    return out;
 }
 
 export async function getAllPlacesForAdminFromSupabase(): Promise<AdminSupabasePlaceRow[]> {
@@ -249,7 +636,7 @@ export async function getAdminPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, city_slug, category_slug, name, description, address, schedule, image, rating, phone, website, maps_url, status, featured, featured_until",
+            "place_id, city_slug, category_slug, name, description, address, schedule, image, rating, phone, website, maps_url, status, featured, featured_until, plan_type, plan_expires_at",
         )
         .eq("place_id", placeId)
         .single();
@@ -262,11 +649,82 @@ export async function getAdminPlaceByIdFromSupabase(
     return data;
 }
 
+export async function placeExistsByExternalPlaceId(external_place_id: string): Promise<boolean> {
+    const id = external_place_id?.trim();
+    if (!id) {
+        return false;
+    }
+    const { data, error } = await supabase
+        .from("places")
+        .select("place_id")
+        .eq("external_place_id", id)
+        .limit(1);
+
+    if (error) {
+        console.error("Supabase external_place_id lookup error:", error);
+        throw new Error("Failed to check external place id");
+    }
+
+    return (data?.length ?? 0) > 0;
+}
+
+function escapeIlikePattern(s: string): string {
+    return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+export async function placeExistsByNameCityCategory(
+    name: string,
+    city_slug: string,
+    category_slug: string,
+): Promise<boolean> {
+    const n = name?.trim();
+    if (!n) {
+        return false;
+    }
+    const { data, error } = await supabase
+        .from("places")
+        .select("place_id")
+        .eq("city_slug", city_slug)
+        .eq("category_slug", category_slug)
+        .ilike("name", escapeIlikePattern(n))
+        .limit(1);
+
+    if (error) {
+        console.error("Supabase name/city/category lookup error:", error);
+        throw new Error("Failed to check duplicate name");
+    }
+
+    return (data?.length ?? 0) > 0;
+}
+
+export async function placeIdExistsInCategory(
+    place_id: string,
+    city_slug: string,
+    category_slug: string,
+): Promise<boolean> {
+    const { data, error } = await supabase
+        .from("places")
+        .select("place_id")
+        .eq("place_id", place_id)
+        .eq("city_slug", city_slug)
+        .eq("category_slug", category_slug)
+        .limit(1);
+
+    if (error) {
+        console.error("Supabase place_id lookup error:", error);
+        throw new Error("Failed to check place id");
+    }
+
+    return (data?.length ?? 0) > 0;
+}
+
 export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): Promise<void> {
     const {
         status: _omitStatus,
         featured: _omitFeatured,
         featured_until: _omitFu,
+        plan_type: _omitPlan,
+        plan_expires_at: _omitPlanEx,
         ...rest
     } = place;
     const featured = typeof place.featured === "boolean" ? place.featured : false;
@@ -276,11 +734,20 @@ export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): 
         place.featured_until === ""
             ? null
             : place.featured_until;
+    const plan_type = normalizeListingPlanType(place.plan_type);
+    const plan_expires_at =
+        place.plan_expires_at === undefined ||
+        place.plan_expires_at === null ||
+        place.plan_expires_at === ""
+            ? null
+            : place.plan_expires_at;
     const row = {
         ...rest,
         status: place.status ?? "available",
         featured,
         featured_until,
+        plan_type,
+        plan_expires_at,
     };
     const { error } = await supabase.from("places").insert([row]);
 
@@ -315,6 +782,15 @@ export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): 
             place.featured_until === null || place.featured_until === ""
                 ? null
                 : place.featured_until;
+    }
+    if (place.plan_type !== undefined && place.plan_type !== null) {
+        updatePayload.plan_type = normalizeListingPlanType(place.plan_type);
+    }
+    if (place.plan_expires_at !== undefined) {
+        updatePayload.plan_expires_at =
+            place.plan_expires_at === null || place.plan_expires_at === ""
+                ? null
+                : place.plan_expires_at;
     }
 
     const { error } = await supabase
@@ -384,4 +860,93 @@ export async function deletePlaceFromSupabase(
         console.error("Supabase delete place error:", error);
         throw new Error("Failed to delete place");
     }
+}
+
+const STANDARD_CATEGORY_DEFS: { category_slug: string; category_name: string }[] = [
+    { category_slug: "restaurante", category_name: "Restaurante" },
+    { category_slug: "cafenele", category_name: "Cafenele" },
+    { category_slug: "natura", category_name: "Natură" },
+    { category_slug: "cultural", category_name: "Cultural" },
+    { category_slug: "institutii", category_name: "Instituții" },
+    { category_slug: "evenimente", category_name: "Evenimente" },
+];
+
+function isSafeCitySlug(s: string): boolean {
+    return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s) && s.length > 0 && s.length <= 128;
+}
+
+export type CreateCityResult = {
+    city_slug: string;
+    categories_created: number;
+};
+
+export async function createCityWithStandardCategories(
+    name: string,
+    slugInput?: string | null,
+): Promise<CreateCityResult> {
+    const trimmedName = name?.trim();
+    if (!trimmedName) {
+        throw new Error("Lipsește numele orașului.");
+    }
+
+    const city_slug = (slugInput?.trim() || placeIdSlugFromName(trimmedName)).trim();
+    if (!city_slug || !isSafeCitySlug(city_slug)) {
+        throw new Error("Slug invalid. Folosiți litere mici, cifre și cratime.");
+    }
+
+    const { data: existingCity, error: cityLookupErr } = await supabase
+        .from("cities")
+        .select("slug")
+        .eq("slug", city_slug)
+        .limit(1);
+
+    if (cityLookupErr) {
+        console.error("Supabase city lookup error:", cityLookupErr);
+        throw new Error("Nu s-a putut verifica orașul.");
+    }
+
+    if ((existingCity?.length ?? 0) > 0) {
+        throw new Error("Există deja un oraș cu acest slug.");
+    }
+
+    const { error: insertCityErr } = await supabase
+        .from("cities")
+        .insert([{ slug: city_slug, name: trimmedName }]);
+
+    if (insertCityErr) {
+        console.error("Supabase create city error:", insertCityErr);
+        throw new Error("Nu s-a putut crea orașul.");
+    }
+
+    const { data: existingCats, error: catLookupErr } = await supabase
+        .from("categories")
+        .select("category_slug")
+        .eq("city_slug", city_slug);
+
+    if (catLookupErr) {
+        console.error("Supabase categories lookup error:", catLookupErr);
+        throw new Error("Nu s-au putut citi categoriile.");
+    }
+
+    const have = new Set(
+        (existingCats ?? []).map((r: { category_slug: string }) => r.category_slug),
+    );
+
+    const toInsert = STANDARD_CATEGORY_DEFS.filter((d) => !have.has(d.category_slug)).map((d) => ({
+        city_slug,
+        category_slug: d.category_slug,
+        category_name: d.category_name,
+    }));
+
+    let categories_created = 0;
+    if (toInsert.length > 0) {
+        const { error: insertCatErr } = await supabase.from("categories").insert(toInsert);
+        if (insertCatErr) {
+            console.error("Supabase create categories error:", insertCatErr);
+            throw new Error("Orașul a fost creat, dar categoriile nu s-au putut adăuga.");
+        }
+        categories_created = toInsert.length;
+    }
+
+    return { city_slug, categories_created };
 }

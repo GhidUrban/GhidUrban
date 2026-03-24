@@ -8,7 +8,7 @@ import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { adminImagePreviewSrc } from "@/lib/admin-form-image-preview";
 import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
-import { isActiveFeatured } from "@/lib/is-active-featured";
+import { resolveListing } from "@/lib/listing-plan";
 
 function featuredUntilToIso(local: string): string | null {
     if (!local?.trim()) {
@@ -73,6 +73,8 @@ type EditPlaceFormData = {
     status: "available" | "hidden";
     featured: boolean;
     featured_until: string;
+    plan_type: "free" | "promoted" | "featured";
+    plan_expires_at: string;
 };
 
 type AdminPlaceDetailsResponse = {
@@ -94,6 +96,8 @@ type AdminPlaceDetailsResponse = {
         status?: string;
         featured?: boolean;
         featured_until?: string | null;
+        plan_type?: string;
+        plan_expires_at?: string | null;
     } | null;
 };
 
@@ -112,6 +116,8 @@ const initialFormData: EditPlaceFormData = {
     status: "available",
     featured: false,
     featured_until: "",
+    plan_type: "free",
+    plan_expires_at: "",
 };
 
 type QuickImportDraft = {
@@ -180,6 +186,8 @@ export default function EditAdminPlacePage() {
             status: "available",
             featured: false,
             featured_until: "",
+            plan_type: "free",
+            plan_expires_at: "",
         }));
     }
 
@@ -216,6 +224,14 @@ export default function EditAdminPlacePage() {
                     status: json.data.status === "hidden" ? "hidden" : "available",
                     featured: json.data.featured === true,
                     featured_until: isoToDatetimeLocalValue(json.data.featured_until),
+                    plan_type: (() => {
+                        const p = json.data.plan_type?.toLowerCase().trim();
+                        if (p === "promoted" || p === "featured") {
+                            return p;
+                        }
+                        return "free";
+                    })(),
+                    plan_expires_at: isoToDatetimeLocalValue(json.data.plan_expires_at),
                 });
                 setIsLoading(false);
             } catch {
@@ -347,13 +363,15 @@ export default function EditAdminPlacePage() {
         };
     }, [placeId, formData.name, formData.address, imagePreviewSrc]);
 
-    const previewActiveFeatured = useMemo(
+    const previewListing = useMemo(
         () =>
-            isActiveFeatured({
+            resolveListing({
                 featured: formData.featured,
                 featured_until: featuredUntilToIso(formData.featured_until),
+                plan_type: formData.plan_type,
+                plan_expires_at: featuredUntilToIso(formData.plan_expires_at),
             }),
-        [formData.featured, formData.featured_until]
+        [formData.featured, formData.featured_until, formData.plan_type, formData.plan_expires_at]
     );
 
     const previewCitySlug = formData.city_slug || "baia-mare";
@@ -697,6 +715,44 @@ export default function EditAdminPlacePage() {
                                 </p>
                             </div>
 
+                            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+                                <h2 className="text-sm font-semibold text-gray-900">Plan listare</h2>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Setare manuală (fără plată încă). Dacă lași data goală, planul rămâne activ până îl
+                                    schimbi.
+                                </p>
+                                <div className="mt-3">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">Plan</label>
+                                    <select
+                                        name="plan_type"
+                                        value={formData.plan_type}
+                                        onChange={handleChange}
+                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="free">free — listare normală</option>
+                                        <option value="promoted">promoted — mai multă vizibilitate</option>
+                                        <option value="featured">featured — prioritate maximă și evidențiere</option>
+                                    </select>
+                                </div>
+                                <ul className="mt-2 list-inside list-disc text-xs text-gray-600">
+                                    <li>free = listare normală</li>
+                                    <li>promoted = mai multă vizibilitate</li>
+                                    <li>featured = prioritate maximă și evidențiere</li>
+                                </ul>
+                                <div className="mt-3">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                                        Expiră planul (opțional)
+                                    </label>
+                                    <input
+                                        type="datetime-local"
+                                        name="plan_expires_at"
+                                        value={formData.plan_expires_at}
+                                        onChange={handleChange}
+                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-gray-900 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+
                             {errorMessage ? (
                                 <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                                     {errorMessage}
@@ -732,7 +788,8 @@ export default function EditAdminPlacePage() {
                                         place={previewPlace}
                                         citySlug={previewCitySlug}
                                         categorySlug={previewCategorySlug}
-                                        activeFeatured={previewActiveFeatured}
+                                        activeFeatured={previewListing.activeFeatured}
+                                        activePromoted={previewListing.activePromoted}
                                         statusLabel={formData.status}
                                     />
                                 )}

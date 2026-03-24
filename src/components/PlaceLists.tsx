@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import type { Place } from "@/data/places";
 
@@ -10,8 +10,57 @@ type PlacesListProps = {
   category: string;
 };
 
+type RecommendationsResponse = {
+  success?: boolean;
+  data?: Array<{ place_id?: string; distance_km?: number }>;
+};
+
 export function PlacesList({ places, slug, category }: PlacesListProps) {
   const [search, setSearch] = useState("");
+  const [distanceByPlaceId, setDistanceByPlaceId] = useState<
+    Record<string, number>
+  >({});
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const params = new URLSearchParams({
+          lat: String(lat),
+          lng: String(lng),
+          city_slug: slug,
+          category_slug: category,
+        });
+        try {
+          const res = await fetch(`/api/recommendations?${params.toString()}`);
+          const json = (await res.json()) as RecommendationsResponse;
+          if (!res.ok || !json.success || !Array.isArray(json.data)) {
+            return;
+          }
+          const next: Record<string, number> = {};
+          for (const row of json.data) {
+            const id = row.place_id?.trim();
+            const d = row.distance_km;
+            if (id && typeof d === "number" && Number.isFinite(d)) {
+              next[id] = d;
+            }
+          }
+          setDistanceByPlaceId(next);
+        } catch {
+          /* ignore */
+        }
+      },
+      () => {
+        /* denied or error */
+      },
+      { maximumAge: 60_000, timeout: 12_000 },
+    );
+  }, [slug, category]);
 
   const filteredPlaces = useMemo(() => {
     const searchValue = search.toLowerCase().trim();
@@ -28,14 +77,30 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
           });
 
     return [...base].sort((a, b) => {
-      const rank =
-        Number(!!b.activeFeatured) - Number(!!a.activeFeatured);
-      if (rank !== 0) {
-        return rank;
+      const tier = (b.listingTierRank ?? 0) - (a.listingTierRank ?? 0);
+      if (tier !== 0) {
+        return tier;
+      }
+      const ratingDiff = (b.rating ?? 0) - (a.rating ?? 0);
+      if (ratingDiff !== 0) {
+        return ratingDiff;
+      }
+      const da = distanceByPlaceId[a.id];
+      const db = distanceByPlaceId[b.id];
+      const aOk = typeof da === "number" && Number.isFinite(da);
+      const bOk = typeof db === "number" && Number.isFinite(db);
+      if (aOk && bOk && da !== db) {
+        return da - db;
+      }
+      if (aOk && !bOk) {
+        return -1;
+      }
+      if (!aOk && bOk) {
+        return 1;
       }
       return a.name.localeCompare(b.name);
     });
-  }, [places, search]);
+  }, [places, search, distanceByPlaceId]);
 
   return (
     <div>
@@ -57,6 +122,9 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredPlaces.map((place) => {
             const isFeatured = place.activeFeatured === true;
+            const isPromoted = place.activePromoted === true;
+
+            const distanceKm = distanceByPlaceId[place.id];
 
             return (
               <PublicPlaceCard
@@ -65,6 +133,8 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
                 citySlug={slug}
                 categorySlug={category}
                 activeFeatured={isFeatured}
+                activePromoted={isPromoted}
+                distanceKm={distanceKm}
                 href={`/orase/${slug}/${category}/${place.id}`}
               />
             );

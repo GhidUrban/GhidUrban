@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { PlaceImage } from "@/components/PlaceImage";
-import { PublicPlaceCard } from "@/components/PublicPlaceCard";
+import { SimilarPlacesSection } from "@/components/SimilarPlacesSection";
 import { apiGet } from "@/lib/internal-api";
 import { resolvePlaceImageAbsoluteUrl } from "@/lib/place-image";
 import { slugToTitle } from "@/lib/slug";
@@ -211,11 +211,9 @@ export default async function PlacePage({ params }: PlacePageProps) {
     const categoryName = slugToTitle(category);
     const place = placeResponse.data.place;
     const similarPlacesResponse = await getPlacesResponse(slug, category);
-    const similarPlaces =
+    const similarPlacesCandidates =
         similarPlacesResponse.success && similarPlacesResponse.data
-            ? similarPlacesResponse.data.places
-                .filter((similarPlace) => similarPlace.id !== place.id)
-                .slice(0, 3)
+            ? similarPlacesResponse.data.places.filter((similarPlace) => similarPlace.id !== place.id)
             : [];
     const openStatus = getOpenStatus(place.schedule);
     return (
@@ -314,26 +312,11 @@ export default async function PlacePage({ params }: PlacePageProps) {
                     </div>
                 </article>
 
-                {similarPlaces.length > 0 ? (
-                    <section className="mt-12 border-t border-gray-200/80 pt-10">
-                        <h2 className="text-lg font-semibold tracking-tight text-gray-900 sm:text-xl">
-                            Locuri similare
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-500">Alte locuri din aceeași categorie.</p>
-                        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            {similarPlaces.map((similarPlace) => (
-                                <PublicPlaceCard
-                                    key={similarPlace.id}
-                                    place={similarPlace}
-                                    citySlug={slug}
-                                    categorySlug={category}
-                                    activeFeatured={similarPlace.activeFeatured === true}
-                                    href={`/orase/${slug}/${category}/${similarPlace.id}`}
-                                />
-                            ))}
-                        </div>
-                    </section>
-                ) : null}
+                <SimilarPlacesSection
+                    places={similarPlacesCandidates}
+                    citySlug={slug}
+                    categorySlug={category}
+                />
             </div>
         </main>
     );

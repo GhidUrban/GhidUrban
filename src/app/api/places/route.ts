@@ -1,5 +1,5 @@
 import { ok } from "@/lib/api-response";
-import { isActiveFeatured } from "@/lib/is-active-featured";
+import { resolveListing } from "@/lib/listing-plan";
 import {
     getPlacesByCategoryFromSupabase,
     isValidCategorySlug,
@@ -45,28 +45,41 @@ function sortPlaces(places: Place[], sort: PlacesSortValue | null): Place[] {
     const sortedPlaces = [...places];
 
     sortedPlaces.sort((a, b) => {
-        const featuredRank = Number(!!b.activeFeatured) - Number(!!a.activeFeatured);
-        if (featuredRank !== 0) {
-            return featuredRank;
-        }
-
-        if (!sort) {
-            return a.name.localeCompare(b.name);
-        }
-
-        if (sort === "rating_desc") {
-            return b.rating - a.rating;
-        }
-
-        if (sort === "rating_asc") {
-            return a.rating - b.rating;
+        const tierDiff = (b.listingTierRank ?? 0) - (a.listingTierRank ?? 0);
+        if (tierDiff !== 0) {
+            return tierDiff;
         }
 
         if (sort === "name_asc") {
+            const nameCmp = a.name.localeCompare(b.name);
+            if (nameCmp !== 0) {
+                return nameCmp;
+            }
+            return (b.rating ?? 0) - (a.rating ?? 0);
+        }
+
+        if (sort === "name_desc") {
+            const nameCmp = b.name.localeCompare(a.name);
+            if (nameCmp !== 0) {
+                return nameCmp;
+            }
+            return (b.rating ?? 0) - (a.rating ?? 0);
+        }
+
+        if (sort === "rating_asc") {
+            const r = (a.rating ?? 0) - (b.rating ?? 0);
+            if (r !== 0) {
+                return r;
+            }
             return a.name.localeCompare(b.name);
         }
 
-        return b.name.localeCompare(a.name);
+        const ratingDiff = (b.rating ?? 0) - (a.rating ?? 0);
+        if (ratingDiff !== 0) {
+            return ratingDiff;
+        }
+
+        return a.name.localeCompare(b.name);
     });
 
     return sortedPlaces;
@@ -105,7 +118,14 @@ export async function GET(request: Request) {
         const places: Place[] = supabasePlaces.map((p) => {
             const featured = Boolean(p.featured);
             const featured_until = p.featured_until ?? null;
-            const activeFeatured = isActiveFeatured({ featured, featured_until });
+            const plan_type = p.plan_type ?? "free";
+            const plan_expires_at = p.plan_expires_at ?? null;
+            const { activeFeatured, activePromoted, listingTierRank } = resolveListing({
+                featured,
+                featured_until,
+                plan_type,
+                plan_expires_at,
+            });
             return {
                 id: p.place_id,
                 name: p.name,
@@ -120,6 +140,8 @@ export async function GET(request: Request) {
                 featured,
                 featured_until,
                 activeFeatured,
+                activePromoted,
+                listingTierRank,
             };
         });
         const filteredPlaces = filterPlaces(places, search);

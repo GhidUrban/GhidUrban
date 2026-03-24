@@ -12,6 +12,9 @@ export type Place = {
     featured?: boolean;
     featured_until?: string | null;
     activeFeatured?: boolean;
+    activePromoted?: boolean;
+    /** 0 normal, 1 promoted plan, 2 featured plan or legacy featured */
+    listingTierRank?: number;
 };
 
 const IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";
