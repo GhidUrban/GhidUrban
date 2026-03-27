@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import type { Place } from "@/data/places";
 
@@ -8,59 +8,18 @@ type PlacesListProps = {
   places: Place[];
   slug: string;
   category: string;
+  /** Distanțe după ce utilizatorul a folosit „Folosește locația mea” în secțiunea de recomandări. */
+  distanceByPlaceId?: Record<string, number>;
 };
 
-type RecommendationsResponse = {
-  success?: boolean;
-  data?: Array<{ place_id?: string; distance_km?: number }>;
-};
-
-export function PlacesList({ places, slug, category }: PlacesListProps) {
+export function PlacesList({
+  places,
+  slug,
+  category,
+  distanceByPlaceId: distanceByPlaceIdProp,
+}: PlacesListProps) {
   const [search, setSearch] = useState("");
-  const [distanceByPlaceId, setDistanceByPlaceId] = useState<
-    Record<string, number>
-  >({});
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        const params = new URLSearchParams({
-          lat: String(lat),
-          lng: String(lng),
-          city_slug: slug,
-          category_slug: category,
-        });
-        try {
-          const res = await fetch(`/api/recommendations?${params.toString()}`);
-          const json = (await res.json()) as RecommendationsResponse;
-          if (!res.ok || !json.success || !Array.isArray(json.data)) {
-            return;
-          }
-          const next: Record<string, number> = {};
-          for (const row of json.data) {
-            const id = row.place_id?.trim();
-            const d = row.distance_km;
-            if (id && typeof d === "number" && Number.isFinite(d)) {
-              next[id] = d;
-            }
-          }
-          setDistanceByPlaceId(next);
-        } catch {
-          /* ignore */
-        }
-      },
-      () => {
-        /* denied or error */
-      },
-      { maximumAge: 60_000, timeout: 12_000 },
-    );
-  }, [slug, category]);
+  const distanceByPlaceId = distanceByPlaceIdProp ?? {};
 
   const filteredPlaces = useMemo(() => {
     const searchValue = search.toLowerCase().trim();
@@ -128,7 +87,7 @@ export function PlacesList({ places, slug, category }: PlacesListProps) {
 
             return (
               <PublicPlaceCard
-                key={place.id}
+                key={`${slug}-${category}-${place.id}`}
                 place={place}
                 citySlug={slug}
                 categorySlug={category}

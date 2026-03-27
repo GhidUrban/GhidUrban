@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { IMPORT_CATEGORY_OSM_FILTERS } from "@/lib/import-categories";
+import {
+    IMPORT_CATEGORY_OSM_FILTERS,
+    overpassLinesForFilter,
+} from "@/lib/import-categories";
 import { CITY_COORDINATES } from "@/lib/import-cities";
 import { supabase } from "@/lib/supabase/client";
 
@@ -86,6 +89,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (category_slug === "evenimente") {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Categoria „evenimente” nu este suportată de importul OSM — datele nu sunt suficient de fiabile pentru această categorie.",
+          data: null,
+        },
+        { status: 400 }
+      );
+    }
+
     const city = CITY_COORDINATES[city_slug];
     const osmFilters = IMPORT_CATEGORY_OSM_FILTERS[category_slug];
 
@@ -97,15 +112,14 @@ export async function POST(req: NextRequest) {
     }
 
     const queryParts: string[] = [];
-    for (const { key, value } of osmFilters) {
-      const k = key.replace(/"/g, '\\"');
-      const v = value.replace(/"/g, '\\"');
-      queryParts.push(
-        `        node["${k}"="${v}"](around:${SEARCH_RADIUS_M},${city.lat},${city.lon});`
+    for (const filter of osmFilters) {
+      const lines = overpassLinesForFilter(
+        filter,
+        SEARCH_RADIUS_M,
+        city.lat,
+        city.lon
       );
-      queryParts.push(
-        `        way["${k}"="${v}"](around:${SEARCH_RADIUS_M},${city.lat},${city.lon});`
-      );
+      queryParts.push(...lines);
     }
 
     const query = `
@@ -166,7 +180,7 @@ ${queryParts.join("\n")}
       );
     }
 
-    const normalized = data.elements
+    const normalizedRaw = data.elements
       .filter((el: any) => el.tags?.name)
       .map((el: any) => {
         const tags = el.tags;
@@ -193,6 +207,18 @@ ${queryParts.join("\n")}
         const completenessScore = computeCompletenessScore(row);
         return { ...row, completenessScore };
       });
+
+    const dedupByExternalId = new Map<string, (typeof normalizedRaw)[number]>();
+    for (const row of normalizedRaw) {
+      const ext = row.external_place_id?.trim();
+      if (!ext) {
+        continue;
+      }
+      if (!dedupByExternalId.has(ext)) {
+        dedupByExternalId.set(ext, row);
+      }
+    }
+    const normalized = Array.from(dedupByExternalId.values());
 
     normalized.sort((a, b) => {
       if (b.completenessScore !== a.completenessScore) {

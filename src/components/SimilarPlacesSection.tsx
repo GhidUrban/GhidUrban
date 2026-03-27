@@ -65,7 +65,10 @@ export function SimilarPlacesSection({ places, citySlug, categorySlug }: Similar
 
             <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
                 {displayPlaces.map((p) => (
-                    <div key={p.id} className="min-w-[240px] flex-shrink-0">
+                    <div
+                        key={`${citySlug}-${categorySlug}-${p.id}`}
+                        className="min-w-[240px] flex-shrink-0"
+                    >
                         <PublicPlaceCard
                             place={p}
                             citySlug={citySlug}

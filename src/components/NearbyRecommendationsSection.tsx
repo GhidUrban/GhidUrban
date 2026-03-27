@@ -121,12 +121,31 @@ function placesToRows(places: PlaceFromApi[], city_slug: string, category_slug: 
     }));
 }
 
+function buildDistanceMapFromRecItems(items: RecItem[]): Record<string, number> {
+    const next: Record<string, number> = {};
+    for (const it of items) {
+        if (it.place_id && Number.isFinite(it.distance_km)) {
+            next[it.place_id] = it.distance_km;
+        }
+    }
+    return next;
+}
+
 type NearbyRecommendationsSectionProps = {
     citySlug: string;
     categorySlug: string;
+    /** Called when the visible recommendation rows change (nearby or fallback). Empty = none. */
+    onRecommendationsChange?: (placeIds: string[]) => void;
+    /** Distanțe pentru lista principală; doar după ce user-ul a folosit locația (același API ca recomandările). */
+    onDistancesChange?: (distanceByPlaceId: Record<string, number>) => void;
 };
 
-function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommendationsSectionProps) {
+function NearbyRecommendationsSection({
+    citySlug,
+    categorySlug,
+    onRecommendationsChange,
+    onDistancesChange,
+}: NearbyRecommendationsSectionProps) {
     const [location, setLocation] = useState<LocationState>({
         loadingLocation: true,
         noLocation: false,
@@ -136,6 +155,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
     const [sectionKind, setSectionKind] = useState<"nearby" | "fallback" | null>(null);
 
     const loadFallback = useCallback(async () => {
+        onDistancesChange?.({});
         try {
             const params = new URLSearchParams({
                 city_slug: citySlug.trim(),
@@ -157,7 +177,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
         } finally {
             setLocation((prev) => ({ ...prev, loadingLocation: false }));
         }
-    }, [citySlug, categorySlug]);
+    }, [citySlug, categorySlug, onDistancesChange]);
 
     const requestLocation = useCallback(() => {
         if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -169,6 +189,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
             }));
             setRows([]);
             setSectionKind(null);
+            onDistancesChange?.({});
             void loadFallback();
             return;
         }
@@ -181,6 +202,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
         }));
         setRows([]);
         setSectionKind(null);
+        onDistancesChange?.({});
 
         navigator.geolocation.getCurrentPosition(
             async (pos) => {
@@ -196,7 +218,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
                     const params = new URLSearchParams({
                         lat: String(lat),
                         lng: String(lng),
-                        limit: "6",
+                        limit: "50",
                         category_slug: categorySlug.trim(),
                         city_slug: citySlug.trim(),
                     });
@@ -205,7 +227,8 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
                     if (res.ok && json.success && Array.isArray(json.data)) {
                         const parsed = parseRecItems(json.data);
                         if (parsed.length > 0) {
-                            setRows(parsed.map(recToRow));
+                            onDistancesChange?.(buildDistanceMapFromRecItems(parsed));
+                            setRows(parsed.slice(0, 6).map(recToRow));
                             setSectionKind("nearby");
                             setLocation((prev) => ({ ...prev, loadingLocation: false }));
                             return;
@@ -215,6 +238,7 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
                     /* */
                 }
                 setLocation((prev) => ({ ...prev, loadingLocation: false }));
+                onDistancesChange?.({});
             },
             () => {
                 setLocation((prev) => ({ ...prev, noLocation: true }));
@@ -222,11 +246,12 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
             },
             { maximumAge: 60_000, timeout: 12_000 },
         );
-    }, [citySlug, categorySlug, loadFallback]);
+    }, [citySlug, categorySlug, loadFallback, onDistancesChange]);
 
     useEffect(() => {
         setRows([]);
         setSectionKind(null);
+        onDistancesChange?.({});
 
         if (typeof navigator === "undefined" || !navigator.geolocation) {
             setLocation({
@@ -243,32 +268,61 @@ function NearbyRecommendationsSection({ citySlug, categorySlug }: NearbyRecommen
             noLocation: false,
             needsLocationCta: true,
         });
-    }, [citySlug, categorySlug, loadFallback]);
+    }, [citySlug, categorySlug, loadFallback, onDistancesChange]);
+
+    useEffect(() => {
+        if (!onRecommendationsChange) {
+            return;
+        }
+        if (rows.length > 0 && sectionKind) {
+            onRecommendationsChange(rows.map((r) => r.place_id));
+        } else {
+            onRecommendationsChange([]);
+        }
+    }, [rows, sectionKind, onRecommendationsChange]);
 
     if (location.needsLocationCta && !location.noLocation) {
         return (
-            <div className="mt-6 space-y-3">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <h2 className="text-base font-semibold text-gray-900">Recomandări în apropiere</h2>
-                    <button
-                        type="button"
-                        onClick={() => requestLocation()}
-                        className="inline-flex rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+            <div className="mt-6">
+                <button
+                    type="button"
+                    onClick={() => requestLocation()}
+                    className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2"
+                >
+                    <svg
+                        className="h-4 w-4 shrink-0 text-gray-600"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth={1.75}
+                        stroke="currentColor"
+                        aria-hidden
                     >
-                        Folosește locația mea
-                    </button>
-                </div>
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+                        />
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
+                        />
+                    </svg>
+                    Folosește locația mea
+                </button>
             </div>
         );
     }
 
     if (location.loadingLocation && rows.length === 0) {
         return (
-            <div className="mt-6 space-y-3">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <h2 className="text-base font-semibold text-gray-900">Recomandări în apropiere</h2>
-                    <span className="text-sm text-gray-500">Se încarcă…</span>
-                </div>
+            <div className="mt-6 flex items-center gap-2.5 text-sm text-gray-500">
+                <span
+                    className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-200 border-t-gray-500"
+                    aria-hidden
+                />
+                <span>Se încarcă…</span>
             </div>
         );
     }

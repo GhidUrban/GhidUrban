@@ -17,6 +17,8 @@ type AdminPlacesApiResponseData = {
         featured?: boolean;
         featured_until?: string | null;
     }>;
+    city_slugs: string[];
+    category_slugs: string[];
 };
 
 type AdminPlacesResponse = {
@@ -29,6 +31,8 @@ export default function AdminPage() {
     const router = useRouter();
     const [places, setPlaces] = useState<AdminPlacesApiResponseData["places"]>([]);
     const [count, setCount] = useState(0);
+    const [citySlugs, setCitySlugs] = useState<string[]>([]);
+    const [categorySlugs, setCategorySlugs] = useState<string[]>([]);
     const [hasError, setHasError] = useState(false);
     const [search, setSearch] = useState("");
     const [selectedCity, setSelectedCity] = useState("");
@@ -40,7 +44,20 @@ export default function AdminPage() {
     useEffect(() => {
         async function loadPlaces() {
             try {
-                const response = await fetch("/api/admin/places");
+                const params = new URLSearchParams();
+                if (search.trim()) {
+                    params.set("search", search.trim());
+                }
+                if (selectedCity) {
+                    params.set("city_slug", selectedCity);
+                }
+                if (selectedCategory) {
+                    params.set("category_slug", selectedCategory);
+                }
+                const qs = params.toString();
+                const url = qs ? `/api/admin/places?${qs}` : "/api/admin/places";
+
+                const response = await fetch(url, { cache: "no-store" });
                 const json = (await response.json()) as AdminPlacesResponse;
 
                 if (!response.ok || !json.success || !json.data) {
@@ -48,15 +65,18 @@ export default function AdminPage() {
                     return;
                 }
 
+                setHasError(false);
                 setPlaces(json.data.places);
                 setCount(json.data.count);
+                setCitySlugs(json.data.city_slugs ?? []);
+                setCategorySlugs(json.data.category_slugs ?? []);
             } catch {
                 setHasError(true);
             }
         }
 
-        loadPlaces();
-    }, []);
+        void loadPlaces();
+    }, [search, selectedCity, selectedCategory]);
 
     function normalizeStatus(raw: string | undefined): "available" | "hidden" {
         return raw === "hidden" ? "hidden" : "available";
@@ -212,35 +232,8 @@ export default function AdminPage() {
         router.refresh();
     }
 
-    const cityOptions = Array.from(new Set(places.map((place) => place.city_slug))).sort();
-    const categoryOptions = Array.from(new Set(places.map((place) => place.category_slug))).sort();
-
-    const searchTokens = search
-        .toLowerCase()
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-
-    const filteredPlaces = places.filter((place) => {
-        const matchesCity = selectedCity ? place.city_slug === selectedCity : true;
-        const matchesCategory = selectedCategory ? place.category_slug === selectedCategory : true;
-
-        const haystack = [
-            place.name,
-            place.city_slug,
-            place.category_slug,
-            place.address ?? "",
-        ]
-            .join(" ")
-            .toLowerCase();
-
-        const matchesSearch =
-            searchTokens.length === 0
-                ? true
-                : searchTokens.every((token) => haystack.includes(token));
-
-        return matchesCity && matchesCategory && matchesSearch;
-    });
+    const cityOptions = citySlugs.length > 0 ? citySlugs : [];
+    const categoryOptions = categorySlugs.length > 0 ? categorySlugs : [];
 
     if (hasError) {
         return (
@@ -393,8 +386,11 @@ export default function AdminPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredPlaces.map((place) => (
-                                <tr key={place.place_id} className="border-t border-gray-200">
+                            {places.map((place) => (
+                                <tr
+                                    key={`${place.city_slug}-${place.category_slug}-${place.place_id}`}
+                                    className="border-t border-gray-200"
+                                >
                                     <td className="px-4 py-3 font-medium text-gray-900">{place.name}</td>
                                     <td className="px-4 py-3">{place.city_slug}</td>
                                     <td className="px-4 py-3">{place.category_slug}</td>
@@ -510,7 +506,7 @@ export default function AdminPage() {
                     </table>
                 </div>
 
-                {filteredPlaces.length === 0 && (
+                {places.length === 0 && (
                     <p className="mt-4 text-sm text-gray-500">
                         No results found.
                     </p>

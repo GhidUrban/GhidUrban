@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Breadcrumb from "@/components/Breadcrumb";
-import NearbyRecommendationsSection from "@/components/NearbyRecommendationsSection";
-import { PlacesList } from "@/components/PlaceLists";
+import { CategoryPlacesSection } from "@/components/CategoryPlacesSection";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
 import { notFound } from "next/navigation";
@@ -59,7 +58,6 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     const cityName = slugToTitle(slug);
     const categoryName = slugToTitle(category);
     const places = placesResponse.data.places;
-    const placesCountLabel = places.length === 1 ? "1 locație găsită" : `${places.length} locații găsite`;
 
     return (
         <main className="min-h-screen bg-gray-100 py-4">
@@ -81,17 +79,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
                     ← Înapoi la {cityName}
                 </Link>
 
-                <h1 className="mb-3 text-center text-2xl font-semibold tracking-tight text-gray-900">
-                    {categoryName}
-                </h1>
-
-                <NearbyRecommendationsSection citySlug={slug} categorySlug={category} />
-
-                <p className="text-center text-sm text-gray-500">{placesCountLabel}</p>
-
-                <div className="mt-6">
-                    <PlacesList places={[...places]} slug={slug} category={category} />
-                </div>
+                <CategoryPlacesSection
+                    places={[...places]}
+                    slug={slug}
+                    category={category}
+                    categoryName={categoryName}
+                />
             </div>
         </main>
     );

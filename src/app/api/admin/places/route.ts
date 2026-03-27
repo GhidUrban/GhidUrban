@@ -2,6 +2,7 @@ import {
     createPlaceInSupabase,
     deletePlaceFromSupabase,
     getAllPlacesForAdminFromSupabase,
+    type AdminSupabasePlaceRow,
     updatePlaceFeaturedInSupabase,
     updatePlaceInSupabase,
     updatePlaceStatusInSupabase,
@@ -10,6 +11,47 @@ import { placeIdSlugFromName } from "@/lib/slug";
 import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+
+export const dynamic = "force-dynamic";
+
+function filterAdminPlaces(
+    places: AdminSupabasePlaceRow[],
+    search: string,
+    city_slug: string,
+    category_slug: string,
+): AdminSupabasePlaceRow[] {
+    let filtered: AdminSupabasePlaceRow[] = places;
+
+    const searchTokens = search
+        .toLowerCase()
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (searchTokens.length > 0) {
+        filtered = filtered.filter((p) => {
+            const haystack = [
+                p.name,
+                p.city_slug,
+                p.category_slug,
+                p.address ?? "",
+            ]
+                .join(" ")
+                .toLowerCase();
+            return searchTokens.every((token) => haystack.includes(token));
+        });
+    }
+
+    if (city_slug) {
+        filtered = filtered.filter((p) => p.city_slug === city_slug);
+    }
+
+    if (category_slug) {
+        filtered = filtered.filter((p) => p.category_slug === category_slug);
+    }
+
+    return filtered;
+}
 
 function normalizeImagePath(raw: unknown): string {
     if (typeof raw !== "string" || !raw.trim()) {
@@ -43,9 +85,23 @@ function planTypeFromBody(raw: unknown): "free" | "promoted" | "featured" {
     return "free";
 }
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const places = await getAllPlacesForAdminFromSupabase();
+        const { searchParams } = new URL(request.url);
+        const search = searchParams.get("search") ?? "";
+        const city_slug = searchParams.get("city_slug") ?? "";
+        const category_slug = searchParams.get("category_slug") ?? "";
+
+        console.log("ADMIN FILTER:", { search, city_slug, category_slug });
+
+        const allPlaces = await getAllPlacesForAdminFromSupabase();
+
+        const city_slugs = Array.from(new Set(allPlaces.map((p) => p.city_slug))).sort();
+        const category_slugs = Array.from(
+            new Set(allPlaces.map((p) => p.category_slug)),
+        ).sort();
+
+        const places = filterAdminPlaces(allPlaces, search, city_slug, category_slug);
 
         return NextResponse.json({
             success: true,
@@ -53,6 +109,8 @@ export async function GET() {
             data: {
                 count: places.length,
                 places,
+                city_slugs,
+                category_slugs,
             },
         });
     } catch (error) {

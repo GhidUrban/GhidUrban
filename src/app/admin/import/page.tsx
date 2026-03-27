@@ -374,7 +374,7 @@ export default function AdminImportPage() {
                                 const quality = importQualityBadge(row.completenessScore);
                                 return (
                                     <li
-                                        key={id}
+                                        key={`${citySlug}-${categorySlug}-${id}`}
                                         className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
                                     >
                                         <div className="flex gap-3">

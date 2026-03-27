@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backfill:coords": "npx tsx scripts/backfill-place-coordinates.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
