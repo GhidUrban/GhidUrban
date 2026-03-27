@@ -21,6 +21,8 @@ type CommitItem = {
     external_place_id: string;
     latitude?: number | null;
     longitude?: number | null;
+    /** Google Places rating 1–5, optional */
+    rating?: number | null;
 };
 
 function strOrNull(v: unknown): string | null {
@@ -119,9 +121,10 @@ export async function POST(req: Request) {
             }
             usedPlaceIds.add(place_id);
 
-            const imageRaw = strOrEmpty(item.image);
-            const image = imageRaw || PLACE_IMAGE_PLACEHOLDER;
+            // Google preview images are temporary and are not persisted; ignore any client "image" field.
+            const image = PLACE_IMAGE_PLACEHOLDER;
 
+            const ratingVal = numOrNull(item.rating);
             await createPlaceInSupabase({
                 place_id,
                 city_slug,
@@ -131,7 +134,7 @@ export async function POST(req: Request) {
                 address: strOrNull(item.address),
                 schedule: strOrNull(item.schedule),
                 image,
-                rating: 0,
+                rating: ratingVal !== null && ratingVal >= 0 ? ratingVal : 0,
                 phone: strOrNull(item.phone),
                 website: strOrNull(item.website),
                 maps_url: strOrNull(item.maps_url),

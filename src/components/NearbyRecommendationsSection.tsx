@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
-import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
+import { getCategoryPlaceholder } from "@/lib/place-image";
 
 type SectionRow = {
     place_id: string;
@@ -97,7 +97,7 @@ function recToRow(r: RecItem): SectionRow {
         place_id: r.place_id,
         name: r.name,
         address: r.address?.trim() ?? "",
-        image: r.image?.trim() || PLACE_IMAGE_PLACEHOLDER,
+        image: r.image?.trim() || getCategoryPlaceholder(r.category_slug),
         rating: r.rating ?? 0,
         city_slug: r.city_slug,
         category_slug: r.category_slug,
@@ -112,7 +112,7 @@ function placesToRows(places: PlaceFromApi[], city_slug: string, category_slug: 
         place_id: p.id,
         name: p.name,
         address: (p.address ?? "").trim(),
-        image: (p.image ?? "").trim() || PLACE_IMAGE_PLACEHOLDER,
+        image: (p.image ?? "").trim() || getCategoryPlaceholder(category_slug),
         rating: typeof p.rating === "number" && Number.isFinite(p.rating) ? p.rating : 0,
         city_slug,
         category_slug,

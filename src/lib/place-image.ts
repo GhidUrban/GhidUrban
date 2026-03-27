@@ -10,17 +10,31 @@ export function localPlaceImagePath(
   return `/images/places/${citySlug}/${categorySlug}/${placeId}.jpg`;
 }
 
+/** Public fallback when a place has no custom image (not persisted in DB). */
+export function getCategoryPlaceholder(categorySlug: string): string {
+  const map: Record<string, string> = {
+    cafenele: "/images/placeholders/cafenele.jpg",
+    restaurante: "/images/placeholders/restaurante.jpg",
+    cultural: "/images/placeholders/cultural.jpg",
+    natura: "/images/placeholders/natura.jpg",
+    institutii: "/images/placeholders/institutii.jpg",
+    evenimente: "/images/placeholders/evenimente.jpg",
+  };
+  const key = categorySlug?.trim();
+  if (key && map[key]) {
+    return map[key]!;
+  }
+  return PLACE_IMAGE_PLACEHOLDER;
+}
+
 export function resolvePlaceImageSrc(
   place: Pick<Place, "id" | "image">,
   citySlug: string,
   categorySlug: string
 ): string {
   const img = place.image?.trim();
-  if (!img) {
-    return localPlaceImagePath(citySlug, categorySlug, place.id);
-  }
-  if (img === PLACE_IMAGE_PLACEHOLDER) {
-    return PLACE_IMAGE_PLACEHOLDER;
+  if (!img || img === PLACE_IMAGE_PLACEHOLDER) {
+    return getCategoryPlaceholder(categorySlug);
   }
   return img;
 }
