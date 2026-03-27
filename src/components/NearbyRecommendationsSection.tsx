@@ -134,6 +134,8 @@ function buildDistanceMapFromRecItems(items: RecItem[]): Record<string, number> 
 type NearbyRecommendationsSectionProps = {
     citySlug: string;
     categorySlug: string;
+    /** Exclude this place from nearby results (e.g. current place on detail page). */
+    excludePlaceId?: string;
     /** Called when the visible recommendation rows change (nearby or fallback). Empty = none. */
     onRecommendationsChange?: (placeIds: string[]) => void;
     /** Distanțe pentru lista principală; doar după ce user-ul a folosit locația (același API ca recomandările). */
@@ -143,6 +145,7 @@ type NearbyRecommendationsSectionProps = {
 function NearbyRecommendationsSection({
     citySlug,
     categorySlug,
+    excludePlaceId,
     onRecommendationsChange,
     onDistancesChange,
 }: NearbyRecommendationsSectionProps) {
@@ -222,6 +225,10 @@ function NearbyRecommendationsSection({
                         category_slug: categorySlug.trim(),
                         city_slug: citySlug.trim(),
                     });
+                    const ex = excludePlaceId?.trim();
+                    if (ex) {
+                        params.set("exclude_place_id", ex);
+                    }
                     const res = await fetch(`/api/recommendations?${params.toString()}`);
                     const json = (await res.json()) as RecommendationsApiShape;
                     if (res.ok && json.success && Array.isArray(json.data)) {
@@ -246,7 +253,7 @@ function NearbyRecommendationsSection({
             },
             { maximumAge: 60_000, timeout: 12_000 },
         );
-    }, [citySlug, categorySlug, loadFallback, onDistancesChange]);
+    }, [citySlug, categorySlug, excludePlaceId, loadFallback, onDistancesChange]);
 
     useEffect(() => {
         setRows([]);
@@ -268,7 +275,7 @@ function NearbyRecommendationsSection({
             noLocation: false,
             needsLocationCta: true,
         });
-    }, [citySlug, categorySlug, loadFallback, onDistancesChange]);
+    }, [citySlug, categorySlug, excludePlaceId, loadFallback, onDistancesChange]);
 
     useEffect(() => {
         if (!onRecommendationsChange) {

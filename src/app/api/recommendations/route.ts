@@ -4,6 +4,8 @@ import {
 } from "@/lib/place-repository";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 function errorResponse(message: string, status: number, error?: string) {
     return NextResponse.json(
         {
@@ -21,24 +23,16 @@ const MAX_RADIUS_KM = 50;
 const DEFAULT_LIMIT = 12;
 const MAX_LIMIT = 50;
 
-function sortRecommendations(places: RecommendedPlaceRow[]) {
+function sortByDistanceAsc(places: RecommendedPlaceRow[]) {
     places.sort((a, b) => {
-        const ta = Number.isFinite(a.listing_tier_rank) ? a.listing_tier_rank! : 0;
-        const tb = Number.isFinite(b.listing_tier_rank) ? b.listing_tier_rank! : 0;
-        if (tb !== ta) {
-            return tb - ta;
-        }
-
-        const ra = typeof a.rating === "number" && Number.isFinite(a.rating) ? a.rating : 0;
-        const rb = typeof b.rating === "number" && Number.isFinite(b.rating) ? b.rating : 0;
-        const ratingDiff = rb - ra;
-        if (ratingDiff !== 0) {
-            return ratingDiff;
-        }
-
         const da = Number.isFinite(a.distance_km) ? a.distance_km : 999;
         const db = Number.isFinite(b.distance_km) ? b.distance_km : 999;
-        return da - db;
+        if (da !== db) {
+            return da - db;
+        }
+        const ta = Number.isFinite(a.listing_tier_rank) ? a.listing_tier_rank! : 0;
+        const tb = Number.isFinite(b.listing_tier_rank) ? b.listing_tier_rank! : 0;
+        return tb - ta;
     });
 }
 
@@ -66,12 +60,14 @@ export async function GET(request: Request) {
         const take = Math.min(Math.max(Math.trunc(limit), 1), MAX_LIMIT);
 
         const city_slug = searchParams.get("city_slug")?.trim() || undefined;
+        const exclude_place_id = searchParams.get("exclude_place_id")?.trim() || undefined;
 
         console.log("[recommendations] params", {
             lat,
             lng,
             city_slug: city_slug ?? null,
             category_slug: category_slug || null,
+            exclude_place_id: exclude_place_id ?? null,
             radius_km,
             limit,
             take,
@@ -102,6 +98,7 @@ export async function GET(request: Request) {
                 radius_km,
                 city_slug,
                 category_slug,
+                exclude_place_id,
             });
         } catch (dbError) {
             console.error("Recommendations DB/repository fetch failed:", dbError);
@@ -118,7 +115,7 @@ export async function GET(request: Request) {
             sample: withValidCoords[0] ?? null,
         });
 
-        sortRecommendations(withValidCoords);
+        sortByDistanceAsc(withValidCoords);
         const top = withValidCoords.slice(0, take);
 
         const data = top.map((p) => ({

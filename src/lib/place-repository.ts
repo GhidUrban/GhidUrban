@@ -520,6 +520,7 @@ type RecommendationOptions = {
     radius_km: number;
     city_slug?: string;
     category_slug?: string;
+    exclude_place_id?: string;
 };
 
 const RECOMMENDATIONS_FETCH_LIMIT = 400;
@@ -559,6 +560,11 @@ export async function getNearbyRecommendedPlacesFromSupabase(
     const category = options.category_slug?.trim();
     if (category) {
         query = query.eq("category_slug", category);
+    }
+
+    const excludeId = options.exclude_place_id?.trim();
+    if (excludeId) {
+        query = query.neq("place_id", excludeId);
     }
 
     const { data, error } = await query;
