@@ -19,6 +19,7 @@ export function getCategoryPlaceholder(categorySlug: string): string {
     natura: "/images/placeholders/natura.jpg",
     institutii: "/images/placeholders/institutii.jpg",
     evenimente: "/images/placeholders/evenimente.jpg",
+    cazare: "/images/placeholders/hotel.jpg",
   };
   const key = categorySlug?.trim();
   if (key && map[key]) {

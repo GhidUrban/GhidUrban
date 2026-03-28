@@ -27,6 +27,8 @@ type GoogleImportMeta = {
     strategy: string;
     raw_candidate_count: number;
     after_dedupe: number;
+    after_location_filter: number;
+    after_category_filters: number;
     after_scoring_sort: number;
     top_n: number;
     details_fetched: number;
@@ -321,7 +323,7 @@ export default function AdminImportPage() {
 
                 <h1 className="text-2xl font-semibold text-gray-900">Import locații</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                    OSM: date comunitare. Google: top 20 după scor (Places API New), previzualizare înainte de salvare.
+                    OSM: date comunitare. Google: top 40 după scor (Places API New), previzualizare înainte de salvare.
                 </p>
 
                 <div className="mb-4 mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
@@ -346,12 +348,12 @@ export default function AdminImportPage() {
                             }`}
                             onClick={() => setImportSource("google")}
                         >
-                            Google (Top 20)
+                            Google (Top 40)
                         </button>
                     </div>
                     {importSource === "google" ? (
                         <p className="text-xs text-gray-600 sm:max-w-md">
-                            Google import folosește mereu top 20 după scor.
+                            Google import folosește mereu top 40 după scor.
                         </p>
                     ) : null}
                 </div>
@@ -443,8 +445,10 @@ export default function AdminImportPage() {
 
                 {googleMeta && importSource === "google" ? (
                     <p className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
-                        Google: strategie {googleMeta.strategy} · candidați {googleMeta.raw_candidate_count} · după
-                        dedupe {googleMeta.after_dedupe} · detalii API {googleMeta.details_fetched} · afișat top{" "}
+                        Google: strategie {googleMeta.strategy} · brut (înainte dedupe) {googleMeta.raw_candidate_count}{" "}
+                        · după dedupe {googleMeta.after_dedupe} · după filtru locație {googleMeta.after_location_filter}{" "}
+                        · după filtre categorie {googleMeta.after_category_filters} · după scor (pool){" "}
+                        {googleMeta.after_scoring_sort} · detalii API {googleMeta.details_fetched} · previzualizare{" "}
                         {googleMeta.top_n}
                     </p>
                 ) : null}

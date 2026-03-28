@@ -143,6 +143,7 @@ const CATEGORY_CARDS: CategoryCard[] = [
     { name: "Cultural", slug: "cultural", icon: "🎭" },
     { name: "Natură", slug: "natura", icon: "🌿" },
     { name: "Evenimente", slug: "evenimente", icon: "🎉" },
+    { name: "Cazare", slug: "cazare", icon: "🏨" },
 ];
 
 const MIN_PLACES_PER_CATEGORY = 20;
@@ -869,12 +870,12 @@ export async function deletePlaceFromSupabase(
 }
 
 const STANDARD_CATEGORY_DEFS: { category_slug: string; category_name: string }[] = [
-    { category_slug: "restaurante", category_name: "Restaurante" },
     { category_slug: "cafenele", category_name: "Cafenele" },
-    { category_slug: "natura", category_name: "Natură" },
+    { category_slug: "restaurante", category_name: "Restaurante" },
+    { category_slug: "natura", category_name: "Natura" },
     { category_slug: "cultural", category_name: "Cultural" },
-    { category_slug: "institutii", category_name: "Instituții" },
-    { category_slug: "evenimente", category_name: "Evenimente" },
+    { category_slug: "institutii", category_name: "Institutii" },
+    { category_slug: "cazare", category_name: "Cazare" },
 ];
 
 function isSafeCitySlug(s: string): boolean {

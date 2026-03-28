@@ -8,7 +8,9 @@ import {
 import { runGoogleImportPreview } from "@/lib/google-import";
 import { supabase } from "@/lib/supabase/client";
 
+/** Doar Google Places preview — fără Overpass/OSM ca fallback. */
 export async function POST(req: Request) {
+    console.log("[import] source = google");
     try {
         const body = await req.json();
         const city_slug =
@@ -104,11 +106,18 @@ export async function POST(req: Request) {
 
         console.log(
             "[Google import] meta:",
+            "raw",
             meta.raw_candidate_count,
             "dedupe",
             meta.after_dedupe,
+            "after_loc",
+            meta.after_location_filter,
+            "after_cat",
+            meta.after_category_filters,
             "details",
             meta.details_fetched,
+            "preview",
+            meta.top_n,
         );
 
         const items = rows.map((r) => {

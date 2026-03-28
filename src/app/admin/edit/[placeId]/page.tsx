@@ -55,6 +55,7 @@ const CATEGORY_OPTIONS = [
     { value: "cultural", label: "Culture" },
     { value: "natura", label: "Nature" },
     { value: "evenimente", label: "Events" },
+    { value: "cazare", label: "Accommodation" },
 ];
 
 

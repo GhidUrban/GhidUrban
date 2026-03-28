@@ -163,6 +163,7 @@ export async function POST(req: Request) {
         revalidatePath("/orase");
         revalidatePath("/admin");
         revalidatePath("/admin/cities");
+        revalidatePath("/admin/categories");
 
         return ok("Oraș creat", {
             city_slug: result.city_slug,

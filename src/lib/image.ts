@@ -12,6 +12,8 @@ export function getImageByCategory(category: string) {
             return "/images/evenimente.jpg";
         case "natura":
             return "/images/natura.jpg";
+        case "cazare":
+            return "/images/hotel.jpg";
         default:
             return "/images/place-placeholder.jpg";
     }

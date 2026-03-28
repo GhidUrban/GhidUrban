@@ -11,6 +11,7 @@ export const GOOGLE_IMPORT_SUPPORTED_CATEGORIES = [
     "natura",
     "institutii",
     "evenimente",
+    "cazare",
 ] as const;
 
 export type GoogleImportSupportedCategory = (typeof GOOGLE_IMPORT_SUPPORTED_CATEGORIES)[number];
@@ -57,13 +58,14 @@ export const GOOGLE_IMPORT_CATEGORY_MAP: Record<
     natura: {
         strategy: "text",
         textKeywords: [
-            "park",
+            "public park",
             "botanical garden",
-            "nature",
-            "lake",
+            "nature reserve",
             "forest",
-            "viewpoint",
-            "hiking",
+            "lake",
+            "river",
+            "hiking trail",
+            "green space",
         ],
         radiusM: 20_000,
     },
@@ -89,6 +91,19 @@ export const GOOGLE_IMPORT_CATEGORY_MAP: Record<
             "festival",
         ],
         radiusM: 15_000,
+    },
+    cazare: {
+        strategy: "nearby",
+        nearbyTypes: ["lodging"],
+        textKeywords: [
+            "hotel",
+            "guesthouse",
+            "apartment hotel",
+            "boutique hotel",
+            "bed and breakfast",
+            "pension",
+        ],
+        radiusM: 20_000,
     },
 };
 

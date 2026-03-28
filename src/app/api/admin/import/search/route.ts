@@ -62,7 +62,9 @@ function computeCompletenessScore(row: {
   return s;
 }
 
+/** Doar Overpass/OSM — fără apel Places/Google ca fallback. */
 export async function POST(req: NextRequest) {
+  console.log("[import] source = osm");
   try {
     const body = await req.json();
     const { city_slug, category_slug } = body;

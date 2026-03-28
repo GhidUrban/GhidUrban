@@ -1,5 +1,5 @@
 /**
- * Google Places API (New) — import preview: cheap search → score → top 20 → optional details.
+ * Google Places API (New) — import preview: cheap search → score → top 40 → optional details.
  * Search requests use minimal field masks; Place Details only for the final shortlist.
  */
 
@@ -15,11 +15,28 @@ const GOOGLE_PLACES_BASE = "https://places.googleapis.com/v1";
 const SEARCH_FIELD_MASK =
     "places.id,places.name,places.displayName,places.formattedAddress,places.location,places.types,places.rating,places.userRatingCount";
 
-/** Details step: only for top 20 after scoring. */
+/** Details step: only for top N after scoring (see GOOGLE_IMPORT_PREVIEW_TOP_N). */
 const DETAILS_FIELD_MASK =
     "websiteUri,internationalPhoneNumber,googleMapsUri,regularOpeningHours,photos";
 
 const DETAILS_DELAY_MS = 120;
+
+/** După scor + filtre: câte rânduri intră în previzualizare (detalii Places doar pentru acestea). */
+const GOOGLE_IMPORT_PREVIEW_TOP_N = 40;
+
+/** Țintă pentru candidați bruti din search (înainte de dedupe); Places permite max 20/pagină sau /request. */
+const GOOGLE_IMPORT_RAW_CANDIDATE_TARGET = 40;
+
+/** Google Places (New): maxim rezultate per cerere searchNearby / pagină searchText. */
+const GOOGLE_IMPORT_SEARCH_PAGE_SIZE = 20;
+
+/** searchNearby includedTypes pentru natura (fără tourist_attraction — prea larg). */
+const GOOGLE_IMPORT_NATURA_NEARBY_TYPES = [
+    "park",
+    "hiking_area",
+    "campground",
+    "natural_feature",
+] as const;
 
 /** După search: rază max față de centrul orașului, pe categorie (km). */
 const GOOGLE_IMPORT_LOCATION_MAX_KM_BY_CATEGORY: Record<
@@ -31,7 +48,8 @@ const GOOGLE_IMPORT_LOCATION_MAX_KM_BY_CATEGORY: Record<
     institutii: 10,
     cultural: 12,
     evenimente: 15,
-    natura: 30,
+    natura: 50,
+    cazare: 20,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -112,7 +130,15 @@ function categoryTypeHints(category: GoogleImportSupportedCategory): string[] {
         cafenele: ["cafe", "coffee_shop", "espresso_bar", "coffee_store", "coffee"],
         restaurante: ["restaurant", "meal_takeaway", "food"],
         cultural: ["museum", "art_gallery", "cultural", "theater", "theatre", "performing"],
-        natura: ["park", "natural", "campground", "hiking", "botanical"],
+        natura: [
+            "park",
+            "natural_feature",
+            "natural",
+            "campground",
+            "hiking_area",
+            "hiking",
+            "botanical",
+        ],
         institutii: [
             "city_hall",
             "courthouse",
@@ -128,6 +154,15 @@ function categoryTypeHints(category: GoogleImportSupportedCategory): string[] {
             "concert",
             "convention",
             "performing",
+        ],
+        cazare: [
+            "lodging",
+            "hotel",
+            "motel",
+            "hostel",
+            "guest_house",
+            "bed_and_breakfast",
+            "resort",
         ],
     };
     return m[category] ?? [];
@@ -410,6 +445,19 @@ function scoreCandidate(
         }
     }
 
+    if (category === "cazare") {
+        const typesStr = types.map((t) => t.toLowerCase()).join(" ");
+        if (typesStr.includes("hotel") || typesStr.includes("lodging")) {
+            s += 4;
+        }
+        if (typesStr.includes("hostel") || typesStr.includes("motel")) {
+            s += 3;
+        }
+        if (typesStr.includes("guest_house") || typesStr.includes("bed_and_breakfast")) {
+            s += 3;
+        }
+    }
+
     const lat = p.location?.latitude ?? null;
     const lon = p.location?.longitude ?? null;
     if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon)) {
@@ -524,6 +572,7 @@ async function fetchSearchNearby(
     center: { lat: number; lon: number },
     includedTypes: string[],
     radiusM: number,
+    rankPreference: "POPULARITY" | "DISTANCE" = "POPULARITY",
 ): Promise<GooglePlaceLite[]> {
     const url = `${GOOGLE_PLACES_BASE}/places:searchNearby`;
     const body = {
@@ -534,8 +583,8 @@ async function fetchSearchNearby(
             },
         },
         includedTypes,
-        maxResultCount: 20,
-        rankPreference: "POPULARITY",
+        maxResultCount: GOOGLE_IMPORT_SEARCH_PAGE_SIZE,
+        rankPreference,
         languageCode: "ro",
         regionCode: "RO",
     };
@@ -577,7 +626,7 @@ async function fetchSearchTextPage(
         textQuery,
         languageCode: "ro",
         regionCode: "RO",
-        maxResultCount: 20,
+        pageSize: GOOGLE_IMPORT_SEARCH_PAGE_SIZE,
         locationBias: {
             circle: {
                 center: { latitude: center.lat, longitude: center.lon },
@@ -615,6 +664,73 @@ async function fetchSearchTextPage(
         places: json.places ?? [],
         nextPageToken: json.nextPageToken,
     };
+}
+
+/** Nearby: max 20/request, fără nextPageToken — combinăm câte un tip + opțional a doua trecere DISTANCE pentru un singur tip. */
+async function collectNearbyRawCandidates(
+    apiKey: string,
+    center: { lat: number; lon: number },
+    nearbyTypes: string[],
+    radiusM: number,
+    target: number,
+): Promise<GooglePlaceLite[]> {
+    const out: GooglePlaceLite[] = [];
+    for (let i = 0; i < nearbyTypes.length; i++) {
+        const t = nearbyTypes[i]!;
+        if (out.length >= target) break;
+        if (i > 0) {
+            await sleep(DETAILS_DELAY_MS);
+        }
+        const chunk = await fetchSearchNearby(apiKey, center, [t], radiusM, "POPULARITY");
+        for (const p of chunk) {
+            out.push(p);
+            if (out.length >= target) break;
+        }
+    }
+    if (out.length < target && nearbyTypes.length === 1) {
+        await sleep(DETAILS_DELAY_MS);
+        const chunk = await fetchSearchNearby(apiKey, center, nearbyTypes, radiusM, "DISTANCE");
+        for (const p of chunk) {
+            out.push(p);
+            if (out.length >= target) break;
+        }
+    }
+    return out.slice(0, target);
+}
+
+/** Text: paginare cu pageToken până la țintă sau epuizare. */
+async function collectTextSearchRawCandidates(
+    apiKey: string,
+    textQuery: string,
+    center: { lat: number; lon: number },
+    radiusM: number,
+    target: number,
+): Promise<GooglePlaceLite[]> {
+    const out: GooglePlaceLite[] = [];
+    let pageToken: string | undefined;
+    let pageNum = 0;
+    do {
+        const page = await fetchSearchTextPage(apiKey, textQuery, center, radiusM, pageToken);
+        pageNum += 1;
+        console.log(
+            "[Google import] searchText page",
+            pageNum,
+            "raw_places:",
+            page.places.length,
+            "has_next_page:",
+            Boolean(page.nextPageToken),
+        );
+        for (const p of page.places) {
+            out.push(p);
+            if (out.length >= target) break;
+        }
+        pageToken =
+            out.length >= target ? undefined : page.nextPageToken?.trim() || undefined;
+        if (pageToken) {
+            await sleep(DETAILS_DELAY_MS);
+        }
+    } while (pageToken);
+    return out.slice(0, target);
 }
 
 async function fetchPlaceDetails(
@@ -656,6 +772,8 @@ export type GoogleImportPreviewMeta = {
     strategy: string;
     raw_candidate_count: number;
     after_dedupe: number;
+    after_location_filter: number;
+    after_category_filters: number;
     after_scoring_sort: number;
     top_n: number;
     details_fetched: number;
@@ -676,7 +794,63 @@ export async function runGoogleImportPreview(options: {
 
     let rawList: GooglePlaceLite[] = [];
 
-    if (cfg.strategy === "nearby" && cfg.nearbyTypes?.length) {
+    if (category_slug === "natura" && cfg.textKeywords?.length) {
+        const naturaTypes = [...GOOGLE_IMPORT_NATURA_NEARBY_TYPES];
+        console.log("[natura nearby types final] " + naturaTypes.join(", "));
+        console.log(
+            "[Google import] searchNearby",
+            category_slug,
+            "types:",
+            naturaTypes.join(","),
+            "r=",
+            cfg.radiusM,
+        );
+        const nearbyPart = await collectNearbyRawCandidates(
+            apiKey,
+            cityCenter,
+            naturaTypes,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
+        const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
+        console.log("[Google import] searchText q=", textQuery.slice(0, 120));
+        const textPart = await collectTextSearchRawCandidates(
+            apiKey,
+            textQuery,
+            cityCenter,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
+        rawList = [...nearbyPart, ...textPart];
+    } else if (category_slug === "cazare" && cfg.nearbyTypes?.length && cfg.textKeywords?.length) {
+        const cazareTypes = [...cfg.nearbyTypes];
+        console.log("[cazare types] lodging");
+        console.log(
+            "[Google import] searchNearby",
+            category_slug,
+            "types:",
+            cazareTypes.join(","),
+            "r=",
+            cfg.radiusM,
+        );
+        const nearbyPart = await collectNearbyRawCandidates(
+            apiKey,
+            cityCenter,
+            cazareTypes,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
+        const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
+        console.log("[Google import] searchText q=", textQuery.slice(0, 120));
+        const textPart = await collectTextSearchRawCandidates(
+            apiKey,
+            textQuery,
+            cityCenter,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
+        rawList = [...nearbyPart, ...textPart];
+    } else if (cfg.strategy === "nearby" && cfg.nearbyTypes?.length) {
         console.log(
             "[Google import] searchNearby",
             category_slug,
@@ -685,27 +859,27 @@ export async function runGoogleImportPreview(options: {
             "r=",
             cfg.radiusM,
         );
-        rawList = await fetchSearchNearby(apiKey, cityCenter, cfg.nearbyTypes, cfg.radiusM);
+        rawList = await collectNearbyRawCandidates(
+            apiKey,
+            cityCenter,
+            cfg.nearbyTypes,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
     } else if (cfg.strategy === "text" && cfg.textKeywords?.length) {
         const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
         console.log("[Google import] searchText q=", textQuery.slice(0, 120));
-        let page = await fetchSearchTextPage(apiKey, textQuery, cityCenter, cfg.radiusM);
-        rawList = [...page.places];
-        if (page.nextPageToken) {
-            await sleep(DETAILS_DELAY_MS);
-            page = await fetchSearchTextPage(
-                apiKey,
-                textQuery,
-                cityCenter,
-                cfg.radiusM,
-                page.nextPageToken,
-            );
-            rawList = rawList.concat(page.places);
-        }
+        rawList = await collectTextSearchRawCandidates(
+            apiKey,
+            textQuery,
+            cityCenter,
+            cfg.radiusM,
+            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+        );
     }
 
     const raw_candidate_count = rawList.length;
-    console.log("[Google import] candidates raw:", raw_candidate_count);
+    console.log("[Google import] raw candidates (before dedupe):", raw_candidate_count);
 
     const byId = new Map<string, GooglePlaceLite>();
     for (const p of rawList) {
@@ -743,6 +917,8 @@ export async function runGoogleImportPreview(options: {
         "max_km:",
         locationMaxKm,
     );
+    const after_location_filter = deduped.length;
+    console.log("[Google import] after location filter:", after_location_filter);
 
     if (category_slug === "cafenele") {
         const beforeCafeFilter = deduped.length;
@@ -782,6 +958,9 @@ export async function runGoogleImportPreview(options: {
         );
     }
 
+    const after_category_filters = deduped.length;
+    console.log("[Google import] after category filters:", after_category_filters);
+
     const scored = deduped.map((p) => {
         const pid = extractPlaceId(p);
         const lat = p.location?.latitude ?? null;
@@ -804,8 +983,13 @@ export async function runGoogleImportPreview(options: {
     });
 
     const after_scoring_sort = scored.length;
-    const top = scored.slice(0, 20);
-    console.log("[Google import] top 20 selected from", after_scoring_sort);
+    const top = scored.slice(0, GOOGLE_IMPORT_PREVIEW_TOP_N);
+    console.log(
+        "[Google import] top",
+        GOOGLE_IMPORT_PREVIEW_TOP_N,
+        "selected from",
+        after_scoring_sort,
+    );
 
     const rows: GoogleImportPreviewRow[] = [];
     let details_fetched = 0;
@@ -853,12 +1037,17 @@ export async function runGoogleImportPreview(options: {
         );
     }
 
+    console.log("[Google import] details fetched:", details_fetched);
+    console.log("[Google import] final preview rows:", rows.length);
+
     return {
         rows,
         meta: {
             strategy: cfg.strategy,
             raw_candidate_count,
             after_dedupe,
+            after_location_filter,
+            after_category_filters,
             after_scoring_sort,
             top_n: rows.length,
             details_fetched,
