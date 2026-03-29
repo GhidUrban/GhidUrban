@@ -11,6 +11,7 @@ import { normalizeListingPlanType, resolveListing } from "@/lib/listing-plan";
 import { haversineKm } from "@/lib/haversine-km";
 import { placeIdSlugFromName, slugToTitle } from "@/lib/slug";
 import { supabase } from "@/lib/supabase/client";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export { isActiveFeatured };
 
@@ -32,6 +33,8 @@ export type AdminCityRow = {
     image: string | null;
     is_active: boolean;
     sort_order: number;
+    latitude: number | null;
+    longitude: number | null;
 };
 
 export type AdminCategoryRow = {
@@ -44,12 +47,26 @@ export type AdminCategoryRow = {
     sort_order: number;
 };
 
+// Admin: DB default sort_order 0 means unset — show after real 1,2,…
+function adminListSortRank(sort_order: unknown): number {
+    const n =
+        typeof sort_order === "number" && Number.isFinite(sort_order)
+            ? sort_order
+            : Number(sort_order);
+    if (!Number.isFinite(n) || n === 0) {
+        return Number.MAX_SAFE_INTEGER;
+    }
+    return n;
+}
+
 export type UpdateCityInput = {
     name?: string;
     slug?: string;
     image?: string | null;
     is_active?: boolean;
     sort_order?: number;
+    latitude?: number | null;
+    longitude?: number | null;
 };
 
 export type UpdateCategoryInput = {
@@ -137,13 +154,13 @@ export type SupabasePlaceMutationInput = {
 };
 
 const CATEGORY_CARDS: CategoryCard[] = [
-    { name: "Restaurante", slug: "restaurante", icon: "🍽" },
-    { name: "Cafenele", slug: "cafenele", icon: "☕" },
-    { name: "Instituții", slug: "institutii", icon: "🏛" },
-    { name: "Cultural", slug: "cultural", icon: "🎭" },
-    { name: "Natură", slug: "natura", icon: "🌿" },
-    { name: "Evenimente", slug: "evenimente", icon: "🎉" },
-    { name: "Cazare", slug: "cazare", icon: "🏨" },
+    { name: "Restaurante", slug: "restaurante", icon: "" },
+    { name: "Cafenele", slug: "cafenele", icon: "" },
+    { name: "Instituții", slug: "institutii", icon: "" },
+    { name: "Cultural", slug: "cultural", icon: "" },
+    { name: "Natură", slug: "natura", icon: "" },
+    { name: "Evenimente", slug: "evenimente", icon: "" },
+    { name: "Cazare", slug: "cazare", icon: "" },
 ];
 
 const MIN_PLACES_PER_CATEGORY = 20;
@@ -183,15 +200,60 @@ export async function getPublicCitiesFromSupabase(): Promise<SupabaseCity[]> {
 export async function getAllCitiesForAdminFromSupabase(): Promise<AdminCityRow[]> {
     const { data, error } = await supabase
         .from("cities")
-        .select("slug, name, image, is_active, sort_order")
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
+        .select("slug, name, image, is_active, sort_order, latitude, longitude");
 
     if (error) {
         throw error;
     }
 
-    return (data ?? []) as AdminCityRow[];
+    const rows = (data ?? []) as AdminCityRow[];
+    return [...rows].sort((a, b) => {
+        const d = adminListSortRank(a.sort_order) - adminListSortRank(b.sort_order);
+        if (d !== 0) {
+            return d;
+        }
+        return a.name.localeCompare(b.name, "ro", { sensitivity: "base" });
+    });
+}
+
+/** Import / autofill: `cities.latitude` / `cities.longitude` only (no hardcoded fallback). */
+export async function resolveCityCenterCoordinates(
+    city_slug: string,
+): Promise<{ lat: number; lon: number } | null> {
+    const s = city_slug?.trim();
+    if (!s) {
+        console.warn("[city coords] missing DB coordinates for (empty slug)");
+        return null;
+    }
+
+    const { data, error } = await supabase
+        .from("cities")
+        .select("latitude, longitude")
+        .eq("slug", s)
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error("resolveCityCenterCoordinates:", error);
+        console.warn(`[city coords] missing DB coordinates for ${s} (query failed)`);
+        return null;
+    }
+
+    if (!data) {
+        console.warn(`[city coords] missing DB coordinates for ${s} (no row)`);
+        return null;
+    }
+
+    const row = data as { latitude: number | null; longitude: number | null };
+    const la = row.latitude != null ? Number(row.latitude) : NaN;
+    const lo = row.longitude != null ? Number(row.longitude) : NaN;
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+        console.warn(`[city coords] missing DB coordinates for ${s} (invalid or null lat/lon)`);
+        return null;
+    }
+
+    console.log(`[city coords] using DB coordinates for ${s}`);
+    return { lat: la, lon: lo };
 }
 
 export async function getCategoriesForAdminByCityFromSupabase(
@@ -202,15 +264,20 @@ export async function getCategoriesForAdminByCityFromSupabase(
         .select(
             "city_slug, category_slug, category_name, image, icon, is_active, sort_order",
         )
-        .eq("city_slug", city_slug)
-        .order("sort_order", { ascending: true })
-        .order("category_name", { ascending: true });
+        .eq("city_slug", city_slug);
 
     if (error) {
         throw error;
     }
 
-    return (data ?? []) as AdminCategoryRow[];
+    const rows = (data ?? []) as AdminCategoryRow[];
+    return [...rows].sort((a, b) => {
+        const d = adminListSortRank(a.sort_order) - adminListSortRank(b.sort_order);
+        if (d !== 0) {
+            return d;
+        }
+        return a.category_name.localeCompare(b.category_name, "ro", { sensitivity: "base" });
+    });
 }
 
 export async function updateCityInSupabase(
@@ -287,6 +354,28 @@ export async function updateCityInSupabase(
             throw new Error("sort_order trebuie să fie număr întreg.");
         }
         row.sort_order = so;
+    }
+    if (updates.latitude !== undefined) {
+        if (updates.latitude === null) {
+            row.latitude = null;
+        } else {
+            const la = Number(updates.latitude);
+            if (!Number.isFinite(la) || la < -90 || la > 90) {
+                throw new Error("latitude trebuie să fie între -90 și 90.");
+            }
+            row.latitude = la;
+        }
+    }
+    if (updates.longitude !== undefined) {
+        if (updates.longitude === null) {
+            row.longitude = null;
+        } else {
+            const lo = Number(updates.longitude);
+            if (!Number.isFinite(lo) || lo < -180 || lo > 180) {
+                throw new Error("longitude trebuie să fie între -180 și 180.");
+            }
+            row.longitude = lo;
+        }
     }
     if (newSlug !== trimmedOld) {
         row.slug = newSlug;
@@ -440,19 +529,32 @@ export function getPlaceById(city: CitySlug, category: CategorySlug, placeId: st
     return getPlacesByCategory(city, category).find((place) => place.id === placeId);
 }
 
+/** True if a row exists in `cities` (any visibility). Used by public APIs that must not depend on static placesByCity. */
+export async function cityExistsInSupabase(citySlug: string): Promise<boolean> {
+    const s = citySlug?.trim();
+    if (!s) {
+        return false;
+    }
+    const { data, error } = await supabase.from("cities").select("slug").eq("slug", s).limit(1);
+    if (error) {
+        console.error("Supabase city lookup error:", error);
+        throw new Error("Failed to verify city");
+    }
+    return (data?.length ?? 0) > 0;
+}
 
 export async function getCategoriesByCityFromSupabase(citySlug: string) {
-  const { data, error } = await supabase
-    .from("categories")
-    .select("category_slug, category_name")
-    .eq("city_slug", citySlug);
+    const { data, error } = await supabase
+        .from("categories")
+        .select("category_slug, category_name")
+        .eq("city_slug", citySlug.trim());
 
-  if (error) {
-    console.error("Supabase categories error:", error);
-    throw new Error("Failed to fetch categories");
-  }
+    if (error) {
+        console.error("Supabase categories error:", error);
+        throw new Error("Failed to fetch categories");
+    }
 
-  return data;
+    return data ?? [];
 }
 
 export async function getPlacesByCategoryFromSupabase(
@@ -654,6 +756,113 @@ export async function getAdminPlaceByIdFromSupabase(
     }
 
     return data;
+}
+
+export function normalizePlaceNameForDedupe(name: string): string {
+    return String(name ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+}
+
+export function normalizePlaceAddressForDedupe(raw: string | null | undefined): string {
+    let s = String(raw ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+    s = s.replace(/,\s*romania\s*$/i, "").trim();
+    return s;
+}
+
+function namesSimilarOneContainsOther(a: string, b: string): boolean {
+    const na = normalizePlaceNameForDedupe(a);
+    const nb = normalizePlaceNameForDedupe(b);
+    if (!na || !nb) {
+        return false;
+    }
+    if (na === nb) {
+        return true;
+    }
+    const shorter = na.length <= nb.length ? na : nb;
+    const longer = na.length <= nb.length ? nb : na;
+    if (shorter.length < 4) {
+        return false;
+    }
+    return longer.includes(shorter);
+}
+
+export async function placeDuplicateByNormalizedAddressInCategory(
+    address: string,
+    city_slug: string,
+    category_slug: string,
+): Promise<boolean> {
+    const target = normalizePlaceAddressForDedupe(address);
+    if (!target) {
+        return false;
+    }
+    const c = city_slug?.trim();
+    const cat = category_slug?.trim();
+    if (!c || !cat) {
+        return false;
+    }
+
+    const { data, error } = await supabase
+        .from("places")
+        .select("address")
+        .eq("city_slug", c)
+        .eq("category_slug", cat);
+
+    if (error) {
+        console.error("Supabase address dedupe lookup error:", error);
+        throw new Error("Failed to check duplicate address");
+    }
+
+    for (const row of data ?? []) {
+        const addr = (row as { address: string | null }).address;
+        if (normalizePlaceAddressForDedupe(addr) === target) {
+            return true;
+        }
+    }
+    return false;
+}
+
+export async function placeDuplicateBySimilarNameAndAddressInCategory(
+    name: string,
+    address: string,
+    city_slug: string,
+    category_slug: string,
+): Promise<boolean> {
+    const targetAddr = normalizePlaceAddressForDedupe(address);
+    if (!targetAddr) {
+        return false;
+    }
+    const c = city_slug?.trim();
+    const cat = category_slug?.trim();
+    if (!c || !cat) {
+        return false;
+    }
+
+    const { data, error } = await supabase
+        .from("places")
+        .select("name, address")
+        .eq("city_slug", c)
+        .eq("category_slug", cat);
+
+    if (error) {
+        console.error("Supabase similar name+address lookup error:", error);
+        throw new Error("Failed to check duplicate name and address");
+    }
+
+    for (const row of data ?? []) {
+        const r = row as { name: string | null; address: string | null };
+        if (normalizePlaceAddressForDedupe(r.address) !== targetAddr) {
+            continue;
+        }
+        if (namesSimilarOneContainsOther(name, r.name ?? "")) {
+            return true;
+        }
+    }
+    return false;
 }
 
 export async function placeExistsByExternalPlaceId(external_place_id: string): Promise<boolean> {
@@ -876,56 +1085,42 @@ const STANDARD_CATEGORY_DEFS: { category_slug: string; category_name: string }[]
     { category_slug: "cultural", category_name: "Cultural" },
     { category_slug: "institutii", category_name: "Institutii" },
     { category_slug: "cazare", category_name: "Cazare" },
+    { category_slug: "evenimente", category_name: "Evenimente" },
 ];
 
-function isSafeCitySlug(s: string): boolean {
+export function isSafeCitySlug(s: string): boolean {
     return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s) && s.length > 0 && s.length <= 128;
 }
 
 export type CreateCityResult = {
     city_slug: string;
     categories_created: number;
+    reused_existing: boolean;
+    coordinates_updated: boolean;
 };
 
-export async function createCityWithStandardCategories(
-    name: string,
-    slugInput?: string | null,
-): Promise<CreateCityResult> {
-    const trimmedName = name?.trim();
-    if (!trimmedName) {
-        throw new Error("Lipsește numele orașului.");
+export function parseCityCreateCoords(
+    coords?: { latitude: number; longitude: number } | null,
+): { latitude: number; longitude: number } | null {
+    if (coords == null) {
+        return null;
     }
-
-    const city_slug = (slugInput?.trim() || placeIdSlugFromName(trimmedName)).trim();
-    if (!city_slug || !isSafeCitySlug(city_slug)) {
-        throw new Error("Slug invalid. Folosiți litere mici, cifre și cratime.");
+    const latitude = Number(coords.latitude);
+    const longitude = Number(coords.longitude);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+        return null;
     }
-
-    const { data: existingCity, error: cityLookupErr } = await supabase
-        .from("cities")
-        .select("slug")
-        .eq("slug", city_slug)
-        .limit(1);
-
-    if (cityLookupErr) {
-        console.error("Supabase city lookup error:", cityLookupErr);
-        throw new Error("Nu s-a putut verifica orașul.");
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+        return null;
     }
+    return { latitude, longitude };
+}
 
-    if ((existingCity?.length ?? 0) > 0) {
-        throw new Error("Există deja un oraș cu acest slug.");
-    }
-
-    const { error: insertCityErr } = await supabase
-        .from("cities")
-        .insert([{ slug: city_slug, name: trimmedName }]);
-
-    if (insertCityErr) {
-        console.error("Supabase create city error:", insertCityErr);
-        throw new Error("Nu s-a putut crea orașul.");
-    }
-
-    const { data: existingCats, error: catLookupErr } = await supabase
+async function insertMissingStandardCategories(
+    db: SupabaseClient,
+    city_slug: string,
+): Promise<number> {
+    const { data: existingCats, error: catLookupErr } = await db
         .from("categories")
         .select("category_slug")
         .eq("city_slug", city_slug);
@@ -939,21 +1134,135 @@ export async function createCityWithStandardCategories(
         (existingCats ?? []).map((r: { category_slug: string }) => r.category_slug),
     );
 
-    const toInsert = STANDARD_CATEGORY_DEFS.filter((d) => !have.has(d.category_slug)).map((d) => ({
-        city_slug,
-        category_slug: d.category_slug,
-        category_name: d.category_name,
-    }));
+    const missing = STANDARD_CATEGORY_DEFS.filter((d) => !have.has(d.category_slug));
+    const toInsert = missing.map((d) => {
+        const ord = STANDARD_CATEGORY_DEFS.findIndex((x) => x.category_slug === d.category_slug);
+        return {
+            city_slug,
+            category_slug: d.category_slug,
+            category_name: d.category_name,
+            is_active: true,
+            sort_order: ord + 1,
+        };
+    });
 
-    let categories_created = 0;
-    if (toInsert.length > 0) {
-        const { error: insertCatErr } = await supabase.from("categories").insert(toInsert);
-        if (insertCatErr) {
-            console.error("Supabase create categories error:", insertCatErr);
-            throw new Error("Orașul a fost creat, dar categoriile nu s-au putut adăuga.");
-        }
-        categories_created = toInsert.length;
+    if (toInsert.length === 0) {
+        return 0;
     }
 
-    return { city_slug, categories_created };
+    const { error: insertCatErr } = await db.from("categories").insert(toInsert);
+    if (insertCatErr) {
+        console.error("Supabase create categories error:", insertCatErr);
+        throw new Error("Categoriile standard nu s-au putut adăuga.");
+    }
+    return toInsert.length;
+}
+
+/** Server-side city + category seed: prefer service role so inserts succeed under RLS. */
+function supabaseClientForCityCreate(): SupabaseClient {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+    if (url && serviceKey) {
+        return createClient(url, serviceKey);
+    }
+    return supabase;
+}
+
+export async function createCityWithStandardCategories(
+    name: string,
+    slugInput?: string | null,
+    coords?: { latitude: number; longitude: number } | null,
+): Promise<CreateCityResult> {
+    const trimmedName = name?.trim();
+    if (!trimmedName) {
+        throw new Error("Lipsește numele orașului.");
+    }
+
+    const city_slug = (slugInput?.trim() || placeIdSlugFromName(trimmedName)).trim();
+    if (!city_slug || !isSafeCitySlug(city_slug)) {
+        throw new Error("Slug invalid. Folosiți litere mici, cifre și cratime.");
+    }
+
+    const parsedCoords = parseCityCreateCoords(coords);
+
+    const db = supabaseClientForCityCreate();
+    const cityImage = `/images/places/${city_slug}/city.jpg`;
+
+    const { data: existingRows, error: cityLookupErr } = await db
+        .from("cities")
+        .select("slug, latitude, longitude")
+        .eq("slug", city_slug)
+        .limit(1);
+
+    if (cityLookupErr) {
+        console.error("Supabase city lookup error:", cityLookupErr);
+        throw new Error("Nu s-a putut verifica orașul.");
+    }
+
+    const existing = (existingRows ?? [])[0] as
+        | { slug: string; latitude: number | null; longitude: number | null }
+        | undefined;
+
+    if (existing) {
+        console.log(`[city create] reused existing city ${city_slug}`);
+
+        let coordinates_updated = false;
+        if (parsedCoords) {
+            const { error: coordErr } = await db
+                .from("cities")
+                .update({
+                    latitude: parsedCoords.latitude,
+                    longitude: parsedCoords.longitude,
+                })
+                .eq("slug", city_slug);
+
+            if (coordErr) {
+                console.error("Supabase update city coordinates error:", coordErr);
+                throw new Error("Nu s-au putut actualiza coordonatele orașului.");
+            }
+            coordinates_updated = true;
+            console.log(`[city create] updated coordinates for ${city_slug}`);
+        }
+
+        const categories_created = await insertMissingStandardCategories(db, city_slug);
+        console.log(`[city create] categories created for ${city_slug}: ${categories_created}`);
+
+        return {
+            city_slug,
+            categories_created,
+            reused_existing: true,
+            coordinates_updated,
+        };
+    }
+
+    if (!parsedCoords) {
+        throw new Error("Lipsește latitude / longitude.");
+    }
+
+    const { error: insertCityErr } = await db.from("cities").insert([
+        {
+            slug: city_slug,
+            name: trimmedName,
+            image: cityImage,
+            latitude: parsedCoords.latitude,
+            longitude: parsedCoords.longitude,
+        },
+    ]);
+
+    if (insertCityErr) {
+        console.error("Supabase create city error:", insertCityErr);
+        throw new Error("Nu s-a putut crea orașul.");
+    }
+
+    console.log(`[city create] created city ${city_slug}`);
+
+    const categories_created = await insertMissingStandardCategories(db, city_slug);
+    console.log(`[city create] categories created for ${city_slug}: ${categories_created}`);
+
+    return {
+        city_slug,
+        categories_created,
+        reused_existing: false,
+        coordinates_updated: false,
+    };
 }

@@ -2,81 +2,10 @@ import { fail, ok } from "@/lib/api-response";
 import {
     createCityWithStandardCategories,
     getAllCitiesForAdminFromSupabase,
+    parseCityCreateCoords,
     updateCityInSupabase,
 } from "@/lib/place-repository";
-import { supabase } from "@/lib/supabase/client";
 import { revalidatePath } from "next/cache";
-import { NextResponse } from "next/server";
-
-export async function DELETE(req: Request) {
-    try {
-        const { searchParams } = new URL(req.url);
-        const slug = (searchParams.get("slug") ?? "").trim();
-        if (!slug) {
-            return fail("Lipsește parametrul slug.", 400);
-        }
-
-        const { data: cityRows, error: cityLookupErr } = await supabase
-            .from("cities")
-            .select("slug")
-            .eq("slug", slug)
-            .limit(1);
-
-        if (cityLookupErr) {
-            console.error("DELETE /api/admin/cities city lookup:", cityLookupErr);
-            return fail("Nu s-a putut verifica orașul.", 500);
-        }
-
-        if (!cityRows?.length) {
-            return fail("Orașul nu există.", 404);
-        }
-
-        const { data: placeRows, error: placesErr } = await supabase
-            .from("places")
-            .select("place_id")
-            .eq("city_slug", slug)
-            .limit(1);
-
-        if (placesErr) {
-            console.error("DELETE /api/admin/cities places check:", placesErr);
-            return fail("Nu s-a putut verifica locațiile.", 500);
-        }
-
-        if ((placeRows?.length ?? 0) > 0) {
-            return fail("Nu poți șterge orașul cât timp există locații asociate.", 400);
-        }
-
-        const { error: delCatsErr } = await supabase
-            .from("categories")
-            .delete()
-            .eq("city_slug", slug);
-
-        if (delCatsErr) {
-            console.error("DELETE /api/admin/cities categories:", delCatsErr);
-            return fail("Nu s-au putut șterge categoriile.", 500);
-        }
-
-        const { error: delCityErr } = await supabase.from("cities").delete().eq("slug", slug);
-
-        if (delCityErr) {
-            console.error("DELETE /api/admin/cities city:", delCityErr);
-            return fail("Nu s-a putut șterge orașul.", 500);
-        }
-
-        revalidatePath("/orase");
-        revalidatePath("/admin");
-        revalidatePath("/admin/cities");
-        revalidatePath("/admin/categories");
-
-        return NextResponse.json({
-            success: true,
-            message: "Orașul a fost șters.",
-        });
-    } catch (error) {
-        console.error("DELETE /api/admin/cities:", error);
-        return fail("Eroare la ștergerea orașului.", 500);
-    }
-}
 
 export async function GET() {
     try {
@@ -111,11 +40,27 @@ export async function PATCH(req: Request) {
                       ? body.image
                       : null;
         }
-        if (body.is_active !== undefined) {
+        if (body.status === "active" || body.status === "hidden") {
+            updates.is_active = body.status === "active";
+        } else if (body.is_active !== undefined) {
             updates.is_active = Boolean(body.is_active);
         }
         if (body.sort_order !== undefined) {
             updates.sort_order = Number(body.sort_order);
+        }
+        if (body.latitude !== undefined) {
+            if (body.latitude === null || body.latitude === "") {
+                updates.latitude = null;
+            } else {
+                updates.latitude = Number(body.latitude);
+            }
+        }
+        if (body.longitude !== undefined) {
+            if (body.longitude === null || body.longitude === "") {
+                updates.longitude = null;
+            } else {
+                updates.longitude = Number(body.longitude);
+            }
         }
 
         const result = await updateCityInSupabase(city_slug, updates);
@@ -137,7 +82,9 @@ export async function PATCH(req: Request) {
             message.startsWith("Slug invalid") ||
             message === "Lipsește slug-ul orașului." ||
             message === "Numele orașului nu poate fi gol." ||
-            message === "sort_order trebuie să fie număr întreg."
+            message === "sort_order trebuie să fie număr întreg." ||
+            message.startsWith("latitude trebuie") ||
+            message.startsWith("longitude trebuie")
         ) {
             return fail(message, 400);
         }
@@ -158,27 +105,55 @@ export async function POST(req: Request) {
                   ? body.slug
                   : undefined;
 
-        const result = await createCityWithStandardCategories(name, slug);
+        const latRaw = body.latitude;
+        const lonRaw = body.longitude;
+        const latMissing =
+            latRaw === undefined || latRaw === null || latRaw === "";
+        const lonMissing =
+            lonRaw === undefined || lonRaw === null || lonRaw === "";
+
+        let coordsPayload: { latitude: number; longitude: number } | undefined;
+        if (!latMissing && !lonMissing) {
+            const parsed = parseCityCreateCoords({
+                latitude: Number(latRaw),
+                longitude: Number(lonRaw),
+            });
+            if (!parsed) {
+                return fail("Introdu latitude și longitude valide (WGS84).", 400);
+            }
+            coordsPayload = parsed;
+        } else if (latMissing !== lonMissing) {
+            return fail("Trimite ambele coordonate (latitude și longitude) sau niciuna.", 400);
+        }
+
+        const result = await createCityWithStandardCategories(name, slug, coordsPayload);
 
         revalidatePath("/orase");
         revalidatePath("/admin");
         revalidatePath("/admin/cities");
         revalidatePath("/admin/categories");
 
-        return ok("Oraș creat", {
+        const apiMessage = result.reused_existing
+            ? result.coordinates_updated
+                ? "City already existed; coordinates were updated."
+                : "City already existed; coordinates were left unchanged."
+            : "Oraș creat.";
+
+        return ok(apiMessage, {
             city_slug: result.city_slug,
             categories_created: result.categories_created,
+            reused_existing: result.reused_existing,
+            coordinates_updated: result.coordinates_updated,
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : "Eroare necunoscută";
 
-        if (message === "Există deja un oraș cu acest slug.") {
-            return fail(message, 409);
-        }
-
         if (
             message === "Lipsește numele orașului." ||
-            message.startsWith("Slug invalid")
+            message.startsWith("Slug invalid") ||
+            message === "Lipsește latitude / longitude." ||
+            message.startsWith("latitude trebuie") ||
+            message.startsWith("longitude trebuie")
         ) {
             return fail(message, 400);
         }

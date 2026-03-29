@@ -3,7 +3,7 @@ import {
     IMPORT_CATEGORY_OSM_FILTERS,
     overpassLinesForFilter,
 } from "@/lib/import-categories";
-import { CITY_COORDINATES } from "@/lib/import-cities";
+import { resolveCityCenterCoordinates } from "@/lib/place-repository";
 import { supabase } from "@/lib/supabase/client";
 
 const ALLOWED_LIMITS = [20, 50, 100] as const;
@@ -103,12 +103,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const city = CITY_COORDINATES[city_slug];
+    const city = await resolveCityCenterCoordinates(city_slug);
     const osmFilters = IMPORT_CATEGORY_OSM_FILTERS[category_slug];
 
     if (!city || !osmFilters?.length) {
       return NextResponse.json(
-        { success: false, message: "Invalid city or category" },
+        {
+          success: false,
+          message: city
+            ? "Invalid category"
+            : "Oraș invalid sau fără coordonate (setează latitude/longitude în admin).",
+        },
         { status: 400 }
       );
     }

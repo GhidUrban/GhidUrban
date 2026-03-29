@@ -7,6 +7,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { adminImagePreviewSrc } from "@/lib/admin-form-image-preview";
+import {
+    adminCitiesToSelectOptions,
+    fetchAdminCitiesForSelect,
+    type AdminCitySelectOption,
+} from "@/lib/admin-load-cities";
 import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
 import { resolveListing } from "@/lib/listing-plan";
 
@@ -36,16 +41,6 @@ function isoToDatetimeLocalValue(iso: string | null | undefined): string {
     const mi = String(d.getMinutes()).padStart(2, "0");
     return `${y}-${mo}-${day}T${h}:${mi}`;
 }
-
-const CITY_OPTIONS = [
-    { value: "", label: "Select city" },
-    { value: "baia-mare", label: "Baia Mare" },
-    { value: "brasov", label: "Brașov" },
-    { value: "bucuresti", label: "București" },
-    { value: "cluj-napoca", label: "Cluj-Napoca" },
-    { value: "oradea", label: "Oradea" },
-    { value: "timisoara", label: "Timișoara" },
-];
 
 const CATEGORY_OPTIONS = [
     { value: "", label: "Select category" },
@@ -151,6 +146,30 @@ export default function EditAdminPlacePage() {
     const [imageUploadError, setImageUploadError] = useState("");
     // Refetch previews when upload overwrites the same Storage URL string.
     const [imagePreviewRevision, setImagePreviewRevision] = useState(0);
+    const [adminCityRows, setAdminCityRows] = useState<
+        Array<{ slug: string; name: string }>
+    >([]);
+
+    const citySelectOptions: AdminCitySelectOption[] = useMemo(() => {
+        const base = adminCitiesToSelectOptions(adminCityRows);
+        const slug = formData.city_slug;
+        if (slug && !base.some((o) => o.value === slug)) {
+            return [...base, { value: slug, label: slug }];
+        }
+        return base;
+    }, [adminCityRows, formData.city_slug]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchAdminCitiesForSelect().then((rows) => {
+            if (!cancelled) {
+                setAdminCityRows(rows);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     function setQuickField<K extends keyof QuickImportDraft>(key: K, value: QuickImportDraft[K]) {
         setQuickImport((q) => ({ ...q, [key]: value }));
@@ -418,7 +437,7 @@ export default function EditAdminPlacePage() {
                                             onChange={handleChange}
                                             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                         >
-                                            {CITY_OPTIONS.map((city) => (
+                                            {citySelectOptions.map((city) => (
                                                 <option key={city.value} value={city.value}>
                                                     {city.label}
                                                 </option>

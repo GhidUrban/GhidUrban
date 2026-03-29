@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import Breadcrumb from "@/components/Breadcrumb";
+import { OraseCityCardImage } from "@/components/OraseCityCardImage";
 import { getPublicCitiesFromSupabase } from "@/lib/place-repository";
 import { slugToTitle } from "@/lib/slug";
 
@@ -81,11 +81,9 @@ export default async function OrasePage() {
                             className="group block h-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm outline-none transition-[transform,box-shadow,opacity] duration-200 ease-out hover:-translate-y-1 hover:shadow-lg focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
                         >
                             <div className="relative overflow-hidden rounded-t-2xl">
-                                <Image
-                                    src={`/images/places/${city.city_slug}/city.jpg`}
+                                <OraseCityCardImage
+                                    citySlug={city.city_slug}
                                     alt={cityDisplayName(city)}
-                                    width={600}
-                                    height={400}
                                     className="h-44 w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02] md:h-48"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />

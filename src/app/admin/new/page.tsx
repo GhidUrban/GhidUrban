@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { adminImagePreviewSrc } from "@/lib/admin-form-image-preview";
+import {
+    adminCitiesToSelectOptions,
+    fetchAdminCitiesForSelect,
+    type AdminCitySelectOption,
+} from "@/lib/admin-load-cities";
 import { uploadPlaceImageFile } from "@/lib/admin-upload-place-image";
 import { isActiveFeatured } from "@/lib/is-active-featured";
 import { placeIdSlugFromName } from "@/lib/slug";
@@ -21,16 +26,6 @@ function featuredUntilToIso(local: string): string | null {
     }
     return d.toISOString();
 }
-
-const CITY_OPTIONS = [
-    { value: "", label: "Select city" },
-    { value: "baia-mare", label: "Baia Mare" },
-    { value: "brasov", label: "Brașov" },
-    { value: "bucuresti", label: "București" },
-    { value: "cluj-napoca", label: "Cluj-Napoca" },
-    { value: "oradea", label: "Oradea" },
-    { value: "timisoara", label: "Timișoara" },
-];
 
 const CATEGORY_OPTIONS = [
     { value: "", label: "Select category" },
@@ -77,70 +72,113 @@ const initialFormData: NewPlaceFormData = {
     featured_until: "",
 };
 
-type QuickImportDraft = {
+type MapsAutofillApiData = {
     name: string;
     address: string;
     website: string;
     phone: string;
     maps_url: string;
+    schedule: string;
 };
 
-const emptyQuickImport: QuickImportDraft = {
-    name: "",
-    address: "",
-    website: "",
-    phone: "",
-    maps_url: "",
-};
+type MapsAutofillApiOk = { success: true; message: string; data: MapsAutofillApiData };
+type MapsAutofillApiFail = { success: false; message: string; data?: unknown };
 
 export default function NewAdminPlacePage() {
     const router = useRouter();
     const [formData, setFormData] = useState<NewPlaceFormData>(initialFormData);
-    const [quickImport, setQuickImport] = useState<QuickImportDraft>(emptyQuickImport);
+    const [mapsUrlInput, setMapsUrlInput] = useState("");
+    const [autofillLoading, setAutofillLoading] = useState(false);
+    const [autofillNotice, setAutofillNotice] = useState<{
+        tone: "ok" | "err";
+        text: string;
+    } | null>(null);
     const [loading, setLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
     const [imageUploading, setImageUploading] = useState(false);
     const [imageUploadError, setImageUploadError] = useState("");
     // Refetch previews when upload overwrites the same Storage URL string.
     const [imagePreviewRevision, setImagePreviewRevision] = useState(0);
+    const [citySelectOptions, setCitySelectOptions] = useState<AdminCitySelectOption[]>([
+        { value: "", label: "Select city" },
+    ]);
 
-    function setQuickField<K extends keyof QuickImportDraft>(key: K, value: QuickImportDraft[K]) {
-        setQuickImport((q) => ({ ...q, [key]: value }));
-    }
+    useEffect(() => {
+        let cancelled = false;
+        fetchAdminCitiesForSelect().then((rows) => {
+            if (!cancelled) {
+                setCitySelectOptions(adminCitiesToSelectOptions(rows));
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
-    function applyQuickDraft() {
+    async function handleAutofillFromMaps() {
+        setAutofillNotice(null);
         if (!formData.city_slug || !formData.category_slug) {
             alert("Select city and category first.");
             return;
         }
-        const name = quickImport.name.trim();
-        if (!name) {
-            alert("Enter a name in Import rapid.");
+        const mapsUrl = mapsUrlInput.trim();
+        if (!mapsUrl) {
+            alert("Introdu un URL Google Maps.");
             return;
         }
-        const address = quickImport.address.trim();
-        if (!address) {
-            alert("Enter an address in Import rapid.");
-            return;
+        setAutofillLoading(true);
+        try {
+            const response = await fetch("/api/admin/places/autofill-from-maps", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    maps_url: mapsUrl,
+                    city_slug: formData.city_slug,
+                }),
+            });
+            const json = (await response.json()) as MapsAutofillApiOk | MapsAutofillApiFail;
+            if (!response.ok || !json.success || !("data" in json) || !json.data) {
+                setAutofillNotice({
+                    tone: "err",
+                    text:
+                        !json.success && "message" in json && json.message
+                            ? json.message
+                            : "Nu s-a putut completa formularul.",
+                });
+                return;
+            }
+            const d = json.data;
+            const nameTrim = d.name.trim();
+            const placeId = placeIdSlugFromName(nameTrim);
+            setFormData((prev) => {
+                const nextImage =
+                    prev.city_slug && prev.category_slug && placeId
+                        ? `/images/places/${prev.city_slug}/${prev.category_slug}/${placeId}.jpg`
+                        : prev.image;
+                return {
+                    ...prev,
+                    name: d.name.trim() || prev.name,
+                    address: d.address.trim() || prev.address,
+                    website: d.website.trim() || prev.website,
+                    phone: d.phone.trim() || prev.phone,
+                    maps_url: d.maps_url.trim() || prev.maps_url,
+                    schedule: d.schedule.trim() || prev.schedule,
+                    image: nextImage,
+                    status: "available",
+                    featured: false,
+                    featured_until: "",
+                };
+            });
+            setAutofillNotice({
+                tone: "ok",
+                text: "Datele au fost puse în formular; le poți edita înainte de Save.",
+            });
+        } catch {
+            setAutofillNotice({ tone: "err", text: "Nu s-a putut contacta serverul." });
+        } finally {
+            setAutofillLoading(false);
         }
-        const placeId = placeIdSlugFromName(name);
-        if (!placeId) {
-            alert("Name needs at least one letter or number (a–z, 0–9) for the place id.");
-            return;
-        }
-        const imagePath = `/images/places/${formData.city_slug}/${formData.category_slug}/${placeId}.jpg`;
-        setFormData((prev) => ({
-            ...prev,
-            name,
-            address,
-            website: quickImport.website.trim(),
-            phone: quickImport.phone.trim(),
-            maps_url: quickImport.maps_url.trim(),
-            image: imagePath,
-            status: "available",
-            featured: false,
-            featured_until: "",
-        }));
     }
 
     function handleChange(
@@ -231,11 +269,24 @@ export default function NewAdminPlacePage() {
                 }),
             });
 
-            const json = await response.json();
+            const json = (await response.json()) as {
+                success?: boolean;
+                message?: string;
+                data?: { reason?: string } | null;
+            };
 
             if (!response.ok || !json.success) {
-                setErrorMessage(json.message || "Could not save place.");
-                alert("Something went wrong");
+                let msg = json.message || "Could not save place.";
+                const r = json.data?.reason;
+                if (
+                    response.status === 409 &&
+                    r &&
+                    (r === "external_place_id" || r === "place_id")
+                ) {
+                    msg = `${json.message} (${r})`;
+                }
+                setErrorMessage(msg);
+                alert(msg);
                 return;
             }
 
@@ -296,9 +347,12 @@ export default function NewAdminPlacePage() {
 
                             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                         <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/40 p-4">
-                            <h2 className="text-sm font-semibold text-gray-900">Import rapid</h2>
+                            <h2 className="text-sm font-semibold text-gray-900">
+                                Completează automat din Google Maps
+                            </h2>
                             <p className="mt-1 text-xs text-gray-500">
-                                Choose city and category in this box, then fill the fields below. Draft fills the main form (not saved until you press Save).
+                                Alege orașul și categoria, lipește linkul locului din Google Maps, apoi
+                                completează formularul de mai jos (fără salvare automată).
                             </p>
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                 <div>
@@ -311,7 +365,7 @@ export default function NewAdminPlacePage() {
                                         onChange={handleChange}
                                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     >
-                                        {CITY_OPTIONS.map((c) => (
+                                        {citySelectOptions.map((c) => (
                                             <option key={c.value} value={c.value}>
                                                 {c.label}
                                             </option>
@@ -337,71 +391,39 @@ export default function NewAdminPlacePage() {
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="mb-1 block text-xs font-medium text-gray-600">
-                                        Name
+                                        Google Maps URL
                                     </label>
                                     <input
                                         type="text"
-                                        value={quickImport.name}
-                                        onChange={(e) => setQuickField("name", e.target.value)}
-                                        placeholder="e.g. Pressco Restaurant"
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                                        Address
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={quickImport.address}
-                                        onChange={(e) => setQuickField("address", e.target.value)}
-                                        placeholder="Street, city"
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                                        Website (optional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={quickImport.website}
-                                        onChange={(e) => setQuickField("website", e.target.value)}
-                                        placeholder="https://..."
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                                        Phone (optional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={quickImport.phone}
-                                        onChange={(e) => setQuickField("phone", e.target.value)}
-                                        placeholder="+40 ..."
-                                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                                    />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <label className="mb-1 block text-xs font-medium text-gray-600">
-                                        Google Maps URL (optional)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={quickImport.maps_url}
-                                        onChange={(e) => setQuickField("maps_url", e.target.value)}
-                                        placeholder="https://maps.google.com/..."
+                                        value={mapsUrlInput}
+                                        onChange={(e) => setMapsUrlInput(e.target.value)}
+                                        placeholder="https://maps.google.com/... sau maps.app.goo.gl/..."
                                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 bg-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
+                            {autofillNotice ? (
+                                <p
+                                    className={`mt-2 text-xs ${
+                                        autofillNotice.tone === "ok"
+                                            ? "text-green-800"
+                                            : "text-red-700"
+                                    }`}
+                                >
+                                    {autofillNotice.text}
+                                </p>
+                            ) : null}
                             <button
                                 type="button"
-                                onClick={applyQuickDraft}
-                                className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+                                disabled={autofillLoading}
+                                onClick={() => void handleAutofillFromMaps()}
+                                className={`mt-3 rounded-md px-4 py-2 text-sm font-medium text-white transition ${
+                                    autofillLoading
+                                        ? "bg-gray-400"
+                                        : "bg-blue-600 hover:bg-blue-700"
+                                }`}
                             >
-                                Generează draft
+                                {autofillLoading ? "Se încarcă…" : "Completează formularul"}
                             </button>
                         </div>
 

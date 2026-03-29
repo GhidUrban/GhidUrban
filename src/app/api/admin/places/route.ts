@@ -3,6 +3,10 @@ import {
     deletePlaceFromSupabase,
     getAllPlacesForAdminFromSupabase,
     type AdminSupabasePlaceRow,
+    placeDuplicateByNormalizedAddressInCategory,
+    placeDuplicateBySimilarNameAndAddressInCategory,
+    placeExistsByExternalPlaceId,
+    placeIdExistsInCategory,
     updatePlaceFeaturedInSupabase,
     updatePlaceInSupabase,
     updatePlaceStatusInSupabase,
@@ -147,6 +151,8 @@ export async function POST(req: Request) {
         featured_until,
         plan_type,
         plan_expires_at,
+        external_place_id: externalPlaceIdBody,
+        place_id: placeIdBody,
     } = body;
 
     if (!name || !city_slug || !category_slug) {
@@ -160,9 +166,65 @@ export async function POST(req: Request) {
         );
     }
 
-    const place_id = placeIdSlugFromName(String(name));
+    const place_id =
+        typeof placeIdBody === "string" && placeIdBody.trim()
+            ? placeIdBody.trim()
+            : placeIdSlugFromName(String(name));
+
+    const external_place_id_trimmed =
+        typeof externalPlaceIdBody === "string" && externalPlaceIdBody.trim()
+            ? externalPlaceIdBody.trim()
+            : "";
+
+    const msgAddressOrSimilar = "Place already exists (same address / similar name)";
+
+    function duplicateResponse(
+        reason: "external_place_id" | "place_id" | "same_address" | "similar_name_address",
+    ) {
+        const message =
+            reason === "external_place_id" || reason === "place_id"
+                ? "Place already exists"
+                : msgAddressOrSimilar;
+        return NextResponse.json(
+            {
+                success: false,
+                message,
+                data: { reason },
+            },
+            { status: 409 },
+        );
+    }
 
     try {
+        if (external_place_id_trimmed) {
+            if (await placeExistsByExternalPlaceId(external_place_id_trimmed)) {
+                console.log("[place create] duplicate by external_place_id");
+                return duplicateResponse("external_place_id");
+            }
+        }
+
+        if (await placeIdExistsInCategory(place_id, city_slug, category_slug)) {
+            console.log("[place create] duplicate by place_id");
+            return duplicateResponse("place_id");
+        }
+
+        if (
+            await placeDuplicateBySimilarNameAndAddressInCategory(
+                name,
+                address,
+                city_slug,
+                category_slug,
+            )
+        ) {
+            console.log("[place create] duplicate by similar name + address");
+            return duplicateResponse("similar_name_address");
+        }
+
+        if (await placeDuplicateByNormalizedAddressInCategory(address, city_slug, category_slug)) {
+            console.log("[place create] duplicate by address");
+            return duplicateResponse("same_address");
+        }
+
         const featuredBool = Boolean(featured);
         const featuredUntilResolved = featuredUntilFromBody(featured_until);
         const featuredUntilForCreate =
@@ -193,6 +255,7 @@ export async function POST(req: Request) {
             plan_type: planTypeFromBody(plan_type),
             plan_expires_at:
                 planExpiresCreate === undefined ? null : planExpiresCreate,
+            external_place_id: external_place_id_trimmed || null,
         });
     } catch (error) {
         console.error("Insert error:", error);

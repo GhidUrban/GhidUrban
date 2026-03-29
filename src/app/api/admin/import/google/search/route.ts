@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { CITY_COORDINATES } from "@/lib/import-cities";
 import {
     GOOGLE_IMPORT_SUPPORTED_CATEGORIES,
     isGoogleImportCategory,
 } from "@/lib/google-import-categories";
 import { runGoogleImportPreview } from "@/lib/google-import";
+import { resolveCityCenterCoordinates } from "@/lib/place-repository";
 import { supabase } from "@/lib/supabase/client";
 
 /** Doar Google Places preview — fără Overpass/OSM ca fallback. */
@@ -36,10 +36,15 @@ export async function POST(req: Request) {
             );
         }
 
-        const city = CITY_COORDINATES[city_slug];
+        const city = await resolveCityCenterCoordinates(city_slug);
         if (!city) {
             return NextResponse.json(
-                { success: false, message: "Oraș invalid (lipsește din CITY_COORDINATES).", data: null },
+                {
+                    success: false,
+                    message:
+                        "Oraș invalid sau fără coordonate (setează latitude/longitude pentru oraș în admin).",
+                    data: null,
+                },
                 { status: 400 },
             );
         }

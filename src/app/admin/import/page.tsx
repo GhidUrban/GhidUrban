@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { fetchAdminCitiesForSelect, type AdminCitySelectRow } from "@/lib/admin-load-cities";
 import { GOOGLE_IMPORT_SUPPORTED_CATEGORIES } from "@/lib/google-import-categories";
 import { IMPORT_CATEGORY_OSM_FILTERS } from "@/lib/import-categories";
-import { CITY_COORDINATES } from "@/lib/import-cities";
 
 type ImportDraftResult = {
     name: string;
@@ -32,15 +32,6 @@ type GoogleImportMeta = {
     after_scoring_sort: number;
     top_n: number;
     details_fetched: number;
-};
-
-const CITY_LABELS: Record<string, string> = {
-    "baia-mare": "Baia Mare",
-    brasov: "Brașov",
-    bucuresti: "București",
-    "cluj-napoca": "Cluj-Napoca",
-    oradea: "Oradea",
-    timisoara: "Timișoara",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -95,16 +86,27 @@ export default function AdminImportPage() {
         null
     );
     const [resultLimit, setResultLimit] = useState<20 | 50 | 100>(50);
+    const [adminCityRows, setAdminCityRows] = useState<AdminCitySelectRow[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchAdminCitiesForSelect().then((rows) => {
+            if (!cancelled) {
+                setAdminCityRows(rows);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const cityOptions = useMemo(
         () =>
-            Object.keys(CITY_COORDINATES)
-                .sort()
-                .map((slug) => ({
-                    value: slug,
-                    label: CITY_LABELS[slug] ?? slug,
-                })),
-        []
+            adminCityRows.map((c) => ({
+                value: c.slug,
+                label: c.name?.trim() || c.slug,
+            })),
+        [adminCityRows],
     );
 
     const categoryOptions = useMemo(() => {

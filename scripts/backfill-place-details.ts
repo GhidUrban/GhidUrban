@@ -15,8 +15,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
-import { CITY_COORDINATES } from "../src/lib/import-cities";
-
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const GOOGLE_PLACES_BASE = "https://places.googleapis.com/v1";
 
@@ -333,7 +331,7 @@ async function fetchGooglePlaceDetails(
     citySlug: string,
     apiKey: string,
     logPlaceId: string,
-    /** Din rând sau CITY_COORDINATES — pentru locationBias */
+    /** Din rând, cities.latitude/longitude sau fallback legacy */
     locationCenter: { lat: number; lon: number } | null,
     /** Dacă false, nu cerem googleMapsUri (mai puțin billing). */
     needMapsUrl: boolean,
@@ -468,16 +466,39 @@ type PlaceRow = {
     maps_url: string | null;
 };
 
-function resolveCoords(row: PlaceRow): { lat: number; lon: number } | null {
+async function loadCityCenterBySlug(
+    sb: SupabaseClient,
+): Promise<Map<string, { lat: number; lon: number }>> {
+    const m = new Map<string, { lat: number; lon: number }>();
+    const { data, error } = await sb.from("cities").select("slug, latitude, longitude");
+    if (error) {
+        console.warn("[warn] cities coords:", error.message);
+    }
+    for (const raw of data ?? []) {
+        const r = raw as { slug: string; latitude: number | null; longitude: number | null };
+        const la = r.latitude != null ? Number(r.latitude) : NaN;
+        const lo = r.longitude != null ? Number(r.longitude) : NaN;
+        if (Number.isFinite(la) && Number.isFinite(lo)) {
+            m.set(r.slug, { lat: la, lon: lo });
+        }
+    }
+    return m;
+}
+
+function resolveCoords(
+    row: PlaceRow,
+    cityCenters: Map<string, { lat: number; lon: number }>,
+): { lat: number; lon: number } | null {
     const la = row.latitude != null ? Number(row.latitude) : NaN;
     const lo = row.longitude != null ? Number(row.longitude) : NaN;
     if (Number.isFinite(la) && Number.isFinite(lo)) {
         return { lat: la, lon: lo };
     }
-    const c = CITY_COORDINATES[row.city_slug];
-    if (c) {
-        return { lat: c.lat, lon: c.lon };
+    const fromCity = cityCenters.get(row.city_slug);
+    if (fromCity) {
+        return fromCity;
     }
+    console.warn(`[city coords] missing DB coordinates for ${row.city_slug} (backfill)`);
     return null;
 }
 
@@ -508,6 +529,7 @@ async function main(): Promise<void> {
     console.log("----------------------\n");
 
     const supabase: SupabaseClient = createClient(supabaseUrl, serviceKey);
+    const cityCenters = await loadCityCenterBySlug(supabase);
 
     let placesQuery = supabase
         .from("places")
@@ -567,7 +589,7 @@ async function main(): Promise<void> {
         let phone: string | null = null;
         let maps_url: string | null = null;
 
-        const coords = resolveCoords(row);
+        const coords = resolveCoords(row, cityCenters);
         if (coords) {
             try {
                 const osm = await fetchOsmHints(row.name, coords.lat, coords.lon);

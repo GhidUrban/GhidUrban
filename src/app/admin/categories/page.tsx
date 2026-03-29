@@ -3,12 +3,16 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+type VisibilityStatus = "active" | "hidden";
+
 type AdminCityRow = {
     slug: string;
     name: string;
     image: string | null;
     is_active: boolean;
     sort_order: number;
+    latitude?: number | null;
+    longitude?: number | null;
 };
 
 type AdminCategoryRow = {
@@ -21,7 +25,16 @@ type AdminCategoryRow = {
     sort_order: number;
 };
 
-type CategoryDraft = AdminCategoryRow & { key_category_slug: string };
+type CategoryDraft = {
+    city_slug: string;
+    category_slug: string;
+    category_name: string;
+    image: string | null;
+    icon: string | null;
+    sort_order: number;
+    status: VisibilityStatus;
+    key_category_slug: string;
+};
 
 type ApiOk<T> = { success: true; message: string; data: T };
 type ApiFail = { success: false; message: string; data?: unknown };
@@ -34,6 +47,7 @@ export default function AdminCategoriesPage() {
     const [listError, setListError] = useState("");
     const [listLoading, setListLoading] = useState(false);
     const [savingKey, setSavingKey] = useState<string | null>(null);
+    const [visibilityKey, setVisibilityKey] = useState<string | null>(null);
 
     const loadCities = useCallback(async () => {
         setCitiesError("");
@@ -91,7 +105,13 @@ export default function AdminCategoriesPage() {
             }
             setRows(
                 json.data.categories.map((c) => ({
-                    ...c,
+                    city_slug: c.city_slug,
+                    category_slug: c.category_slug,
+                    category_name: c.category_name,
+                    image: c.image,
+                    icon: c.icon,
+                    sort_order: c.sort_order,
+                    status: c.is_active ? "active" : "hidden",
                     key_category_slug: c.category_slug,
                 })),
             );
@@ -109,7 +129,7 @@ export default function AdminCategoriesPage() {
         }
     }, [citySlug, loadCategories]);
 
-    function updateRow(key: string, patch: Partial<AdminCategoryRow>) {
+    function updateRow(key: string, patch: Partial<CategoryDraft>) {
         setRows((prev) =>
             prev.map((r) => (r.key_category_slug === key ? { ...r, ...patch } : r)),
         );
@@ -127,7 +147,7 @@ export default function AdminCategoriesPage() {
                 category_name: row.category_name,
                 image: row.image ?? "",
                 icon: row.icon ?? "",
-                is_active: row.is_active,
+                is_active: row.status === "active",
                 sort_order: row.sort_order,
             };
             if (slugChanged) {
@@ -154,6 +174,44 @@ export default function AdminCategoriesPage() {
         }
     }
 
+    async function toggleCategoryVisibility(row: CategoryDraft) {
+        const msg =
+            row.status === "active"
+                ? "Ascunzi această categorie?"
+                : "Reactivezi această categorie?";
+        if (!confirm(msg)) {
+            return;
+        }
+        const next: VisibilityStatus = row.status === "active" ? "hidden" : "active";
+        const vkey = `${row.city_slug}:${row.key_category_slug}`;
+        setVisibilityKey(vkey);
+        setListError("");
+        try {
+            const response = await fetch("/api/admin/categories", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    city_slug: row.city_slug,
+                    category_slug: row.key_category_slug,
+                    status: next,
+                }),
+            });
+            const json = (await response.json()) as
+                | ApiOk<{ category_slug: string }>
+                | ApiFail;
+            if (!response.ok || !json.success) {
+                alert(!json.success && "message" in json ? json.message : "Eroare la actualizare.");
+                return;
+            }
+            await loadCategories(row.city_slug);
+        } catch {
+            alert("Nu s-a putut contacta serverul.");
+        } finally {
+            setVisibilityKey(null);
+        }
+    }
+
     return (
         <main className="min-h-screen bg-gray-100 px-4 py-6">
             <div className="mx-auto max-w-5xl">
@@ -166,8 +224,8 @@ export default function AdminCategoriesPage() {
 
                 <h1 className="text-2xl font-semibold text-gray-900">Categorii</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                    Alege orașul, apoi editează nume, slug, imagine, iconiță (text sau emoji), activ și
-                    ordine. Schimbarea slug-ului categoriei actualizează locurile din acea categorie.
+                    Alege orașul, apoi editează nume, slug, imagine și ordine. Schimbarea slug-ului
+                    categoriei actualizează locurile din acea categorie.
                 </p>
 
                 {citiesError ? (
@@ -206,31 +264,43 @@ export default function AdminCategoriesPage() {
                                     <th className="px-3 py-2">Nume</th>
                                     <th className="px-3 py-2">Slug</th>
                                     <th className="px-3 py-2">Imagine</th>
-                                    <th className="px-3 py-2">Icon</th>
-                                    <th className="px-3 py-2">Activ</th>
                                     <th className="px-3 py-2">Ordine</th>
                                     <th className="px-3 py-2" />
+                                    <th className="px-3 py-2">Vizibilitate</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {rows.map((row) => {
                                     const saveKey = `${row.city_slug}:${row.key_category_slug}`;
+                                    const visKey = saveKey;
+                                    const isHiddenRow = row.status === "hidden";
+                                    const rowCls = isHiddenRow
+                                        ? "border-t border-gray-200 bg-gray-50 text-gray-600"
+                                        : "border-t border-gray-200";
+                                    const fieldText = isHiddenRow ? "text-gray-600" : "text-gray-900";
                                     return (
                                         <tr
                                             key={row.key_category_slug}
-                                            className="border-t border-gray-200"
+                                            className={rowCls}
                                         >
                                             <td className="px-3 py-2 align-top">
-                                                <input
-                                                    type="text"
-                                                    value={row.category_name}
-                                                    onChange={(e) =>
-                                                        updateRow(row.key_category_slug, {
-                                                            category_name: e.target.value,
-                                                        })
-                                                    }
-                                                    className="w-36 min-w-[8rem] rounded-md border border-gray-300 px-2 py-1 text-gray-900 sm:w-44"
-                                                />
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={row.category_name}
+                                                        onChange={(e) =>
+                                                            updateRow(row.key_category_slug, {
+                                                                category_name: e.target.value,
+                                                            })
+                                                        }
+                                                        className={`w-36 min-w-[8rem] rounded-md border border-gray-300 px-2 py-1 sm:w-44 ${fieldText}`}
+                                                    />
+                                                    {row.status === "hidden" ? (
+                                                        <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-700">
+                                                            hidden
+                                                        </span>
+                                                    ) : null}
+                                                </div>
                                             </td>
                                             <td className="px-3 py-2 align-top">
                                                 <input
@@ -241,7 +311,7 @@ export default function AdminCategoriesPage() {
                                                             category_slug: e.target.value,
                                                         })
                                                     }
-                                                    className="w-32 min-w-[7rem] rounded-md border border-gray-300 px-2 py-1 font-mono text-xs text-gray-900 sm:w-40"
+                                                    className={`w-32 min-w-[7rem] rounded-md border border-gray-300 px-2 py-1 font-mono text-xs sm:w-40 ${fieldText}`}
                                                 />
                                             </td>
                                             <td className="px-3 py-2 align-top">
@@ -254,32 +324,7 @@ export default function AdminCategoriesPage() {
                                                         })
                                                     }
                                                     placeholder="URL"
-                                                    className="w-40 min-w-[9rem] rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-900"
-                                                />
-                                            </td>
-                                            <td className="px-3 py-2 align-top">
-                                                <input
-                                                    type="text"
-                                                    value={row.icon ?? ""}
-                                                    onChange={(e) =>
-                                                        updateRow(row.key_category_slug, {
-                                                            icon: e.target.value || null,
-                                                        })
-                                                    }
-                                                    placeholder="emoji"
-                                                    className="w-16 rounded-md border border-gray-300 px-2 py-1 text-center text-gray-900"
-                                                />
-                                            </td>
-                                            <td className="px-3 py-2 align-top">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={row.is_active}
-                                                    onChange={(e) =>
-                                                        updateRow(row.key_category_slug, {
-                                                            is_active: e.target.checked,
-                                                        })
-                                                    }
-                                                    className="h-4 w-4 rounded border-gray-300"
+                                                    className={`w-40 min-w-[9rem] rounded-md border border-gray-300 px-2 py-1 text-xs ${fieldText}`}
                                                 />
                                             </td>
                                             <td className="px-3 py-2 align-top">
@@ -291,7 +336,7 @@ export default function AdminCategoriesPage() {
                                                             sort_order: Number(e.target.value),
                                                         })
                                                     }
-                                                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-gray-900"
+                                                    className={`w-20 rounded-md border border-gray-300 px-2 py-1 ${fieldText}`}
                                                 />
                                             </td>
                                             <td className="px-3 py-2 align-top">
@@ -306,6 +351,22 @@ export default function AdminCategoriesPage() {
                                                     }`}
                                                 >
                                                     {savingKey === saveKey ? "…" : "Salvează"}
+                                                </button>
+                                            </td>
+                                            <td className="px-3 py-2 align-top">
+                                                <button
+                                                    type="button"
+                                                    disabled={
+                                                        visibilityKey === visKey || savingKey === saveKey
+                                                    }
+                                                    onClick={() => void toggleCategoryVisibility(row)}
+                                                    className={`rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50 ${isHiddenRow ? "text-gray-600" : "text-gray-800"}`}
+                                                >
+                                                    {visibilityKey === visKey
+                                                        ? "…"
+                                                        : row.status === "active"
+                                                          ? "Hide"
+                                                          : "Unhide"}
                                                 </button>
                                             </td>
                                         </tr>

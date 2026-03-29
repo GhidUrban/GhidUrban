@@ -60,7 +60,9 @@ export async function PATCH(req: Request) {
                       ? body.icon
                       : null;
         }
-        if (body.is_active !== undefined) {
+        if (body.status === "active" || body.status === "hidden") {
+            updates.is_active = body.status === "active";
+        } else if (body.is_active !== undefined) {
             updates.is_active = Boolean(body.is_active);
         }
         if (body.sort_order !== undefined) {

@@ -15,7 +15,7 @@ type CategoriesApiResponseData = {
     count: number;
     categories: Array<{
         category_slug: string;
-        category_icon: string;
+        category_name: string;
     }>;
 };
 
@@ -81,7 +81,8 @@ export default async function CityPage({ params }: CityPageProps) {
 
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                     {categories.map((category) => {
-                        const categoryTitle = slugToTitle(category.category_slug);
+                        const categoryTitle =
+                            category.category_name?.trim() || slugToTitle(category.category_slug);
                         return (
                         <Link
                             key={category.category_slug}
@@ -99,10 +100,7 @@ export default async function CityPage({ params }: CityPageProps) {
                                 />
                             </div>
                             <div className="flex flex-1 flex-col justify-center p-4 text-center">
-                                <span className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-900">
-                                    <span aria-hidden>{category.category_icon}</span>
-                                    <span>{categoryTitle}</span>
-                                </span>
+                                <span className="text-sm font-semibold text-gray-900">{categoryTitle}</span>
                             </div>
                         </Link>
                         );
