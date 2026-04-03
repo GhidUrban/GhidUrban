@@ -40,6 +40,30 @@ export default function AdminPage() {
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [featuredTogglingId, setFeaturedTogglingId] = useState<string | null>(null);
+    const [pendingReviewCount, setPendingReviewCount] = useState<number | null>(null);
+
+    useEffect(() => {
+        async function loadPendingSubmissionsCount() {
+            try {
+                const res = await fetch("/api/admin/submissions", {
+                    credentials: "include",
+                    cache: "no-store",
+                });
+                const json = (await res.json()) as {
+                    success?: boolean;
+                    data?: { count?: number };
+                };
+                if (res.ok && json.success && json.data && typeof json.data.count === "number") {
+                    setPendingReviewCount(json.data.count);
+                } else {
+                    setPendingReviewCount(null);
+                }
+            } catch {
+                setPendingReviewCount(null);
+            }
+        }
+        void loadPendingSubmissionsCount();
+    }, []);
 
     useEffect(() => {
         async function loadPlaces() {
@@ -235,6 +259,11 @@ export default function AdminPage() {
     const cityOptions = citySlugs.length > 0 ? citySlugs : [];
     const categoryOptions = categorySlugs.length > 0 ? categorySlugs : [];
 
+    const cereriVerificareLabel =
+        pendingReviewCount === null
+            ? "Cereri verificare"
+            : `Cereri verificare (${pendingReviewCount})`;
+
     if (hasError) {
         return (
             <main className="min-h-screen bg-gray-100 px-4 py-6">
@@ -254,6 +283,12 @@ export default function AdminPage() {
                                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                             >
                                 Import locații
+                            </Link>
+                            <Link
+                                href="/admin/submissions"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-400 bg-gray-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100"
+                            >
+                                {cereriVerificareLabel}
                             </Link>
                             <Link
                                 href="/admin/cities"
@@ -294,6 +329,12 @@ export default function AdminPage() {
                                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
                             >
                                 Import locații
+                            </Link>
+                            <Link
+                                href="/admin/submissions"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-400 bg-gray-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100"
+                            >
+                                {cereriVerificareLabel}
                             </Link>
                             <Link
                                 href="/admin/cities"

@@ -264,14 +264,14 @@ export default function AdminCitiesPage() {
                         <table className="min-w-full text-left text-sm text-gray-700">
                             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                                 <tr>
-                                    <th className="px-3 py-2">Nume</th>
-                                    <th className="px-3 py-2">Slug</th>
-                                    <th className="px-3 py-2">Imagine (URL)</th>
-                                    <th className="px-3 py-2">Lat</th>
-                                    <th className="px-3 py-2">Lon</th>
-                                    <th className="px-3 py-2">Ordine</th>
-                                    <th className="px-3 py-2" />
-                                    <th className="px-3 py-2">Vizibilitate</th>
+                                    <th className="px-2 py-1.5">Nume</th>
+                                    <th className="px-2 py-1.5">Slug</th>
+                                    <th className="px-2 py-1.5">Imagine (URL)</th>
+                                    <th className="px-2 py-1.5">Lat</th>
+                                    <th className="px-2 py-1.5">Lon</th>
+                                    <th className="px-2 py-1.5">Ordine</th>
+                                    <th className="px-2 py-1.5" />
+                                    <th className="px-2 py-1.5">Vizibilitate</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -283,34 +283,34 @@ export default function AdminCitiesPage() {
                                     const fieldText = isHiddenRow ? "text-gray-600" : "text-gray-900";
                                     return (
                                     <tr key={row.key_slug} className={rowCls}>
-                                        <td className="px-3 py-2 align-top">
-                                            <div className="flex flex-wrap items-center gap-2">
+                                        <td className="px-2 py-1.5 align-top">
+                                            <div className="flex flex-wrap items-center gap-1">
                                                 <input
                                                     type="text"
                                                     value={row.name}
                                                     onChange={(e) =>
                                                         updateRow(row.key_slug, { name: e.target.value })
                                                     }
-                                                    className={`w-36 min-w-[8rem] rounded-md border border-gray-300 px-2 py-1 sm:w-44 ${fieldText}`}
+                                                    className={`w-28 min-w-[6rem] rounded-md border border-gray-300 px-2 py-0.5 text-sm leading-tight sm:w-32 ${fieldText}`}
                                                 />
                                                 {row.status === "hidden" ? (
-                                                    <span className="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-700">
+                                                    <span className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-700">
                                                         hidden
                                                     </span>
                                                 ) : null}
                                             </div>
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <input
                                                 type="text"
                                                 value={row.slug}
                                                 onChange={(e) =>
                                                     updateRow(row.key_slug, { slug: e.target.value })
                                                 }
-                                                className={`w-32 min-w-[7rem] rounded-md border border-gray-300 px-2 py-1 font-mono text-xs sm:w-40 ${fieldText}`}
+                                                className={`w-28 min-w-[6rem] rounded-md border border-gray-300 px-2 py-0.5 font-mono text-sm leading-tight sm:w-32 ${fieldText}`}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <input
                                                 type="text"
                                                 value={row.image ?? ""}
@@ -320,10 +320,10 @@ export default function AdminCitiesPage() {
                                                     })
                                                 }
                                                 placeholder="/images/..."
-                                                className={`w-44 min-w-[10rem] rounded-md border border-gray-300 px-2 py-1 text-xs sm:w-56 ${fieldText}`}
+                                                className={`w-32 min-w-[8rem] rounded-md border border-gray-300 px-2 py-0.5 text-sm leading-tight sm:w-40 ${fieldText}`}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <input
                                                 type="text"
                                                 inputMode="decimal"
@@ -336,10 +336,10 @@ export default function AdminCitiesPage() {
                                                     });
                                                 }}
                                                 placeholder="47.66"
-                                                className={`w-24 rounded-md border border-gray-300 px-2 py-1 text-xs ${fieldText}`}
+                                                className={`w-20 rounded-md border border-gray-300 px-2 py-0.5 text-sm leading-tight ${fieldText}`}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <input
                                                 type="text"
                                                 inputMode="decimal"
@@ -352,10 +352,10 @@ export default function AdminCitiesPage() {
                                                     });
                                                 }}
                                                 placeholder="23.58"
-                                                className={`w-24 rounded-md border border-gray-300 px-2 py-1 text-xs ${fieldText}`}
+                                                className={`w-20 rounded-md border border-gray-300 px-2 py-0.5 text-sm leading-tight ${fieldText}`}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <input
                                                 type="number"
                                                 value={row.sort_order}
@@ -364,15 +364,15 @@ export default function AdminCitiesPage() {
                                                         sort_order: Number(e.target.value),
                                                     })
                                                 }
-                                                className={`w-20 rounded-md border border-gray-300 px-2 py-1 ${fieldText}`}
+                                                className={`w-16 min-w-[64px] rounded-md border border-gray-300 px-2 py-0.5 text-center text-sm leading-tight ${fieldText}`}
                                             />
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <button
                                                 type="button"
                                                 disabled={savingKey === row.key_slug}
                                                 onClick={() => void saveRow(row)}
-                                                className={`rounded-md px-3 py-1.5 text-sm font-medium text-white ${
+                                                className={`rounded-md px-2 py-1 text-xs font-medium text-white ${
                                                     savingKey === row.key_slug
                                                         ? "bg-gray-400"
                                                         : "bg-blue-600 hover:bg-blue-700"
@@ -381,7 +381,7 @@ export default function AdminCitiesPage() {
                                                 {savingKey === row.key_slug ? "…" : "Salvează"}
                                             </button>
                                         </td>
-                                        <td className="px-3 py-2 align-top">
+                                        <td className="px-2 py-1.5 align-top">
                                             <button
                                                 type="button"
                                                 disabled={
@@ -389,7 +389,7 @@ export default function AdminCitiesPage() {
                                                     savingKey === row.key_slug
                                                 }
                                                 onClick={() => void toggleCityVisibility(row)}
-                                                className={`rounded-md border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 disabled:opacity-50 ${isHiddenRow ? "text-gray-600" : "text-gray-800"}`}
+                                                className={`rounded-md border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 disabled:opacity-50 ${isHiddenRow ? "text-gray-600" : "text-gray-800"}`}
                                             >
                                                 {visibilityKey === row.key_slug
                                                     ? "…"

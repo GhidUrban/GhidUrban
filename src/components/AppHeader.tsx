@@ -35,6 +35,17 @@ function NavLink({ href, label }: { href: string; label: string }) {
   );
 }
 
+function AddPlaceNavCta() {
+  return (
+    <Link
+      href="/adauga-locatie"
+      className="rounded-md bg-[#008fa8] px-3 py-1.5 text-sm font-medium text-white outline-none transition-colors duration-200 ease-out hover:bg-[#007a90] focus-visible:ring-2 focus-visible:ring-[#008fa8]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:opacity-90"
+    >
+      Adaugă locație
+    </Link>
+  );
+}
+
 export default function AppHeader() {
   const [scrolled, setScrolled] = useState(false);
 
@@ -91,10 +102,11 @@ export default function AppHeader() {
           />
         </Link>
 
-        <nav className="flex items-center gap-1.5 sm:gap-2" aria-label="Navigare principală">
+        <nav className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2" aria-label="Navigare principală">
           {navItems.map((item) => (
             <NavLink key={item.href} href={item.href} label={item.label} />
           ))}
+          <AddPlaceNavCta />
         </nav>
       </div>
     </header>
