@@ -142,6 +142,8 @@ export async function GET(request: Request) {
                 activeFeatured,
                 activePromoted,
                 listingTierRank,
+                latitude: p.latitude,
+                longitude: p.longitude,
             };
         });
         const filteredPlaces = filterPlaces(places, search);

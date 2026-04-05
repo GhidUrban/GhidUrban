@@ -93,6 +93,9 @@ export type SupabasePlace = {
     featured_until: string | null;
     plan_type: string;
     plan_expires_at: string | null;
+    /** Prezent pe rândurile din `getPlacesByCategoryFromSupabase` / similar. */
+    latitude?: number | null;
+    longitude?: number | null;
 };
 
 export type PlaceVisibilityStatus = "available" | "hidden";
@@ -564,7 +567,7 @@ export async function getPlacesByCategoryFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -588,7 +591,7 @@ export async function getPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)

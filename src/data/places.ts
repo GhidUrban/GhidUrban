@@ -15,6 +15,9 @@ export type Place = {
     activePromoted?: boolean;
     /** 0 normal, 1 promoted plan, 2 featured plan or legacy featured */
     listingTierRank?: number;
+    /** Coordonate WGS84 din DB; lipsă = nu putem calcula distanță locală. */
+    latitude?: number | null;
+    longitude?: number | null;
 };
 
 const IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";

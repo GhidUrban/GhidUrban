@@ -12,10 +12,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Light shell even in OS dark mode — transparent header/search rows use body bg. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #f3f4f6;
+    --foreground: #171717;
   }
 }
 

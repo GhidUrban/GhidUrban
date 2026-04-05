@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import type { Place } from "@/data/places";
 
@@ -18,24 +18,10 @@ export function PlacesList({
   category,
   distanceByPlaceId: distanceByPlaceIdProp,
 }: PlacesListProps) {
-  const [search, setSearch] = useState("");
   const distanceByPlaceId = distanceByPlaceIdProp ?? {};
 
-  const filteredPlaces = useMemo(() => {
-    const searchValue = search.toLowerCase().trim();
-
-    const base =
-      !searchValue
-        ? places
-        : places.filter((place) => {
-            const addr = place.address?.toLowerCase() ?? "";
-            return (
-              place.name.toLowerCase().includes(searchValue) ||
-              addr.includes(searchValue)
-            );
-          });
-
-    return [...base].sort((a, b) => {
+  const sortedPlaces = useMemo(() => {
+    return [...places].sort((a, b) => {
       const tier = (b.listingTierRank ?? 0) - (a.listingTierRank ?? 0);
       if (tier !== 0) {
         return tier;
@@ -59,27 +45,17 @@ export function PlacesList({
       }
       return a.name.localeCompare(b.name);
     });
-  }, [places, search, distanceByPlaceId]);
+  }, [places, distanceByPlaceId]);
 
   return (
     <div>
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Caută un loc după nume sau adresă..."
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          className="w-full rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-sm transition-shadow duration-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 focus:ring-offset-gray-100"
-        />
-      </div>
-
-      {filteredPlaces.length === 0 ? (
+      {sortedPlaces.length === 0 ? (
         <div className="rounded-2xl border border-gray-200/90 bg-white p-4 text-sm text-gray-600 shadow-sm ring-1 ring-gray-100/60">
           Nu am găsit rezultate.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredPlaces.map((place) => {
+          {sortedPlaces.map((place) => {
             const isFeatured = place.activeFeatured === true;
             const isPromoted = place.activePromoted === true;
 

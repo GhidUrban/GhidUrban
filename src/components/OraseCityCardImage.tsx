@@ -9,9 +9,10 @@ type Props = {
     citySlug: string;
     alt: string;
     className?: string;
+    priority?: boolean;
 };
 
-export function OraseCityCardImage({ citySlug, alt, className }: Props) {
+export function OraseCityCardImage({ citySlug, alt, className, priority }: Props) {
     const [src, setSrc] = useState(`/images/places/${citySlug}/city.jpg`);
 
     return (
@@ -21,6 +22,7 @@ export function OraseCityCardImage({ citySlug, alt, className }: Props) {
             width={600}
             height={400}
             className={className}
+            priority={priority}
             onError={() => {
                 setSrc((current) => (current === PLACEHOLDER ? current : PLACEHOLDER));
             }}

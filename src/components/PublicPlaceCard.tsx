@@ -46,11 +46,8 @@ export function PublicPlaceCard({
     <div className={cardToneClass}>
       <div className="relative overflow-hidden rounded-t-2xl">
         {showNearby ? (
-          <div className="pointer-events-none absolute left-2 top-2 z-10 flex max-w-[min(100%-1rem,11rem)] flex-col gap-1.5">
-            <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200 shadow-sm">
-              Aproape de tine
-            </span>
-            <span className="inline-flex w-fit rounded-md bg-white/95 px-2 py-0.5 text-xs text-gray-500 shadow-sm ring-1 ring-gray-200/80 backdrop-blur-sm">
+          <div className="pointer-events-none absolute left-2 top-2 z-10">
+            <span className="inline-flex rounded-md border border-black/[0.06] bg-white/95 px-2 py-0.5 text-[11px] font-medium tabular-nums text-gray-600">
               {distanceKm.toFixed(1)} km
             </span>
           </div>

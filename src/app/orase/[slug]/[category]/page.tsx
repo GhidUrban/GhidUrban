@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import Breadcrumb from "@/components/Breadcrumb";
+import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
 import { CategoryPlacesSection } from "@/components/CategoryPlacesSection";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
@@ -62,29 +61,17 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     return (
         <main className="min-h-screen bg-gray-100 py-4">
             <div className="mx-auto max-w-4xl px-4">
-                <div className="mb-4">
-                    <Breadcrumb
-                        items={[
-                            { label: "Orașe", href: "/orase" },
-                            { label: cityName, href: `/orase/${slug}` },
-                            { label: categoryName }
-                        ]}
-                    />
-                </div>
-
-                <Link
-                    href={`/orase/${slug}`}
-                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
-                >
-                    ← Înapoi la {cityName}
-                </Link>
-
-                <CategoryPlacesSection
-                    places={[...places]}
-                    slug={slug}
-                    category={category}
-                    categoryName={categoryName}
+                <OraseFlowPageHeader
+                    items={[
+                        { label: "Orașe", href: "/orase" },
+                        { label: cityName, href: `/orase/${slug}` },
+                        { label: categoryName }
+                    ]}
+                    title={categoryName}
+                    titleClassName="max-w-2xl"
                 />
+
+                <CategoryPlacesSection places={[...places]} slug={slug} category={category} />
             </div>
         </main>
     );

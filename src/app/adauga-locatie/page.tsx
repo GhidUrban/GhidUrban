@@ -235,7 +235,7 @@ export default function AdaugaLocatiePage() {
     return (
         <main className="min-h-screen bg-gray-100 py-6">
             <div className="mx-auto max-w-2xl px-4">
-                <div className="mb-4">
+                <div className="mb-4 min-w-0 w-full">
                     <Breadcrumb
                         items={[
                             { label: "Acasă", href: "/" },

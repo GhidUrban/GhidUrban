@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
@@ -218,26 +217,25 @@ export default async function PlacePage({ params }: PlacePageProps) {
     const openStatus = getOpenStatus(place.schedule);
     return (
         <main className="min-h-screen bg-gray-100 py-4">
-            <div className="mx-auto max-w-4xl px-4">
-                <div className="mb-4">
-                    <Breadcrumb
-                        items={[
-                            { label: "Orașe", href: "/orase" },
-                            { label: cityName, href: `/orase/${slug}` },
-                            { label: categoryName, href: `/orase/${slug}/${category}` },
-                            { label: place.name }
-                        ]}
-                    />
-                </div>
+            <div className="mx-auto min-w-0 max-w-4xl px-4">
+                <header className="min-w-0 w-full">
+                    <div className="flex min-h-[32px] min-w-0 items-center justify-between gap-3">
+                        <div className="flex min-w-0 flex-1 items-center">
+                            <Breadcrumb
+                                muted
+                                items={[
+                                    { label: "Orașe", href: "/orase" },
+                                    { label: cityName, href: `/orase/${slug}` },
+                                    { label: categoryName, href: `/orase/${slug}/${category}` },
+                                    { label: place.name }
+                                ]}
+                            />
+                        </div>
+                    </div>
+                </header>
 
-                <Link
-                    href={`/orase/${slug}/${category}`}
-                    className="mb-4 inline-block rounded-sm text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:translate-y-0.5 active:opacity-90"
-                >
-                    ← Înapoi la {categoryName.toLowerCase()}
-                </Link>
-
-                <article className="mt-6 rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm ring-1 ring-gray-100/80 md:p-8">
+                <div className="min-w-0 mt-3 pt-3">
+                <article className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm shadow-black/[0.04] ring-1 ring-black/[0.03] md:p-8">
                     <div className="relative overflow-hidden rounded-2xl">
                         <PlaceImage
                             place={place}
@@ -258,12 +256,12 @@ export default async function PlacePage({ params }: PlacePageProps) {
                     </div>
 
                     {place.description ? (
-                        <div className="mt-8">
+                        <div className="mt-6">
                             <p className="text-base leading-relaxed text-gray-600">{place.description}</p>
                         </div>
                     ) : null}
 
-                    <div className="mt-8 grid gap-4 md:grid-cols-2">
+                    <div className="mt-6 grid gap-5 md:grid-cols-2 md:gap-6">
                         {place.address ? (
                             <div className="rounded-xl border border-gray-200/90 bg-gray-50/30 px-4 py-4 shadow-sm">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -311,6 +309,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
                         </div>
                     </div>
                 </article>
+                </div>
 
                 <SimilarPlacesSection
                     places={similarPlacesCandidates}
