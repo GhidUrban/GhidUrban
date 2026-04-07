@@ -65,10 +65,10 @@ export function OraseCitiesLoadingSkeleton() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm ring-1 ring-gray-100/60"
+              className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
             >
-              <Pulse className="h-36 w-full rounded-none rounded-t-2xl" />
-              <div className="space-y-2 p-4">
+              <Pulse className="h-40 w-full rounded-none rounded-t-2xl" />
+              <div className="space-y-2 p-3">
                 <Pulse className="h-4 w-3/4 max-w-[12rem]" />
                 <Pulse className="h-3 w-1/2 max-w-[6rem]" />
               </div>
@@ -89,10 +89,10 @@ export function OraseCityLoadingSkeleton() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm ring-1 ring-gray-100/60"
+              className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
             >
-              <Pulse className="h-32 w-full rounded-none rounded-t-2xl" />
-              <div className="space-y-2 p-3 sm:p-4">
+              <Pulse className="h-40 w-full rounded-none rounded-t-2xl" />
+              <div className="space-y-2 p-3">
                 <Pulse className="h-4 w-2/3" />
               </div>
             </div>
@@ -114,10 +114,10 @@ export function OraseCategoryLoadingSkeleton() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm ring-1 ring-gray-100/60"
+                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
               >
-                <Pulse className="h-36 w-full rounded-none rounded-t-2xl" />
-                <div className="space-y-2 p-4">
+                <Pulse className="h-40 w-full rounded-none rounded-t-2xl" />
+                <div className="space-y-2 p-3">
                   <Pulse className="h-4 w-4/5" />
                   <Pulse className="h-3 w-full" />
                 </div>
@@ -130,10 +130,10 @@ export function OraseCategoryLoadingSkeleton() {
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm ring-1 ring-gray-100/60"
+                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
               >
-                <Pulse className="h-36 w-full rounded-none rounded-t-2xl" />
-                <div className="space-y-2 p-4">
+                <Pulse className="h-40 w-full rounded-none rounded-t-2xl" />
+                <div className="space-y-2 p-3">
                   <Pulse className="h-4 w-3/4" />
                   <Pulse className="h-3 w-full" />
                   <Pulse className="h-3 w-1/3" />
@@ -185,10 +185,10 @@ export function OrasePlaceLoadingSkeleton() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm"
+                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
               >
-                <Pulse className="h-32 w-full rounded-none rounded-t-2xl" />
-                <div className="space-y-2 p-4">
+                <Pulse className="h-40 w-full rounded-none rounded-t-2xl" />
+                <div className="space-y-2 p-3">
                   <Pulse className="h-4 w-3/4" />
                 </div>
               </div>

@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { PlaceImage } from "@/components/PlaceImage";
+import { RecordRecentPlaceVisit } from "@/components/RecordRecentPlaceVisit";
 import { SimilarPlacesSection } from "@/components/SimilarPlacesSection";
 import { apiGet } from "@/lib/internal-api";
-import { resolvePlaceImageAbsoluteUrl } from "@/lib/place-image";
+import { resolvePlaceImageAbsoluteUrl, resolvePlaceImageSrc } from "@/lib/place-image";
 import { slugToTitle } from "@/lib/slug";
 import { notFound } from "next/navigation";
 import type { Place } from "@/data/places";
@@ -105,36 +106,9 @@ function formatSchedule(schedule: string | null | undefined): string {
     return cleanScheduleDashes(`L${EN_DASH}D ${raw}`);
 }
 
-function getOpenStatus(schedule: string | null | undefined) {
-    if (!schedule || !schedule.trim()) {
-        return { label: "Program indisponibil", tone: "neutral" as const };
-    }
-
-    const s = schedule.toLowerCase();
-
-    // Always open cases
-    if (
-        s.includes("zilnic") ||
-        s.includes("acces liber") ||
-        s.includes("00:00–24:00") ||
-        s.includes("00:00-24:00")
-    ) {
-        return { label: "Deschis", tone: "open" as const };
-    }
-
-    // If schedule contains hours, assume it's open (simple MVP logic)
-    const hasHours = /\d{1,2}:\d{2}/.test(s);
-
-    if (hasHours) {
-        return { label: "Deschis", tone: "open" as const };
-    }
-
-    // If explicitly closed
-    if (s.includes("închis") || s.includes("inchis")) {
-        return { label: "Închis", tone: "neutral" as const };
-    }
-
-    return { label: "Verifică programul", tone: "neutral" as const };
+function phoneToTelHref(raw: string): string {
+    const cleaned = raw.replace(/[\s.-]/g, "").trim();
+    return cleaned.length > 0 ? `tel:${cleaned}` : "#";
 }
 
 const getPlaceResponse = cache(async (slug: string, category: string, placeId: string) => {
@@ -214,12 +188,32 @@ export default async function PlacePage({ params }: PlacePageProps) {
         similarPlacesResponse.success && similarPlacesResponse.data
             ? similarPlacesResponse.data.places.filter((similarPlace) => similarPlace.id !== place.id)
             : [];
-    const openStatus = getOpenStatus(place.schedule);
+    const placeHref = `/orase/${slug}/${category}/${placeId}`;
+    const hasAddress = Boolean(place.address?.trim());
+    const phoneTrimmed = place.phone?.trim() ?? "";
+    const hasPhone = phoneTrimmed.length > 0;
+
     return (
         <main className="min-h-screen bg-gray-100 py-4">
+            <RecordRecentPlaceVisit
+                place_id={place.id}
+                name={place.name}
+                city_slug={slug}
+                city_name={cityName}
+                category_slug={category}
+                category_name={categoryName}
+                href={placeHref}
+                image_url={resolvePlaceImageSrc(
+                    { id: place.id, image: place.image ?? "" },
+                    slug,
+                    category,
+                )}
+                address={place.address}
+                rating={place.rating}
+            />
             <div className="mx-auto min-w-0 max-w-4xl px-4">
                 <header className="min-w-0 w-full">
-                    <div className="flex min-h-[32px] min-w-0 items-center justify-between gap-3">
+                    <div className="flex min-h-[32px] min-w-0 items-center">
                         <div className="flex min-w-0 flex-1 items-center">
                             <Breadcrumb
                                 muted
@@ -250,26 +244,26 @@ export default async function PlacePage({ params }: PlacePageProps) {
                             className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent"
                             aria-hidden
                         />
-                        <h1 className="absolute bottom-6 left-6 right-6 text-3xl font-semibold tracking-tight text-white drop-shadow-sm md:text-4xl">
+                        <h1 className="absolute bottom-5 left-5 right-5 text-[1.75rem] font-semibold tracking-tight text-white drop-shadow-sm md:bottom-6 md:left-6 md:right-6 md:text-3xl">
                             {place.name}
                         </h1>
                     </div>
 
                     {place.description ? (
                         <div className="mt-6">
-                            <p className="text-base leading-relaxed text-gray-600">{place.description}</p>
+                            <p className="text-sm leading-relaxed text-gray-600 md:text-base">{place.description}</p>
                         </div>
                     ) : null}
 
-                    <div className="mt-6 grid gap-5 md:grid-cols-2 md:gap-6">
-                        {place.address ? (
-                            <div className="rounded-xl border border-gray-200/90 bg-gray-50/30 px-4 py-4 shadow-sm">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                        {hasAddress ? (
+                            <div className="px-5 py-3">
+                                <p className="text-xs font-medium text-gray-400/80">
                                     Locație
                                 </p>
-                                <div className="mt-2 flex items-start gap-2">
+                                <div className="mt-1.5 flex items-start gap-2">
                                     <PlaceDetailMapPinIcon />
-                                    <p className="min-w-0 flex-1 break-words text-sm leading-6 text-gray-700">
+                                    <p className="min-w-0 flex-1 break-words text-sm leading-5 text-gray-600">
                                         {place.address}
                                     </p>
                                 </div>
@@ -278,32 +272,37 @@ export default async function PlacePage({ params }: PlacePageProps) {
                                         href={place.mapsUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mt-3 inline-flex items-center rounded-full bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm ring-1 ring-gray-200/80 transition duration-200 hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:translate-y-0.5 active:opacity-90"
+                                        className="mt-2.5 inline-flex items-center text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                                     >
-                                        Vezi pe hartă →
+                                        Vezi pe hartă
                                     </a>
                                 ) : null}
                             </div>
                         ) : null}
-                        <div
-                            className={`rounded-xl border border-gray-200/90 bg-gray-50/30 px-4 py-4 text-left shadow-sm${place.address ? "" : " md:col-span-2"}`}
-                        >
-                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                    Program
+                        {hasPhone ? (
+                            <div
+                                className={`px-5 py-3 ${hasAddress ? "border-t border-gray-200/70" : ""}`}
+                            >
+                                <p className="text-xs font-medium text-gray-400/80">
+                                    Telefon
                                 </p>
-                                <span
-                                    className={
-                                        openStatus.tone === "open"
-                                            ? "inline-flex shrink-0 items-center rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-200"
-                                            : "inline-flex shrink-0 items-center rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-200"
-                                    }
+                                <a
+                                    href={phoneToTelHref(phoneTrimmed)}
+                                    aria-label={`Sună la ${phoneTrimmed}`}
+                                    className="mt-1.5 inline-block min-w-0 max-w-full text-sm font-medium tabular-nums text-gray-900 transition-colors hover:text-black hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
                                 >
-                                    {openStatus.label}
-                                </span>
+                                    {phoneTrimmed}
+                                </a>
                             </div>
+                        ) : null}
+                        <div
+                            className={`px-5 py-3 ${hasAddress || hasPhone ? "border-t border-gray-200/70" : ""}`}
+                        >
+                            <p className="text-xs font-medium text-gray-400/80">
+                                Program
+                            </p>
 
-                            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-gray-600">
+                            <p className="mt-1.5 whitespace-pre-line text-sm leading-5 text-gray-600">
                                 {formatSchedule(place.schedule)}
                             </p>
                         </div>

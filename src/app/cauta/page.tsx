@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Breadcrumb from "@/components/Breadcrumb";
 import {
     loadGlobalSearchIndex,
     type GlobalSearchIndex,
@@ -15,6 +14,12 @@ export const revalidate = 120;
 
 type CautaPageProps = {
     searchParams: Promise<{ q?: string | string[] }>;
+};
+
+export type CautaServerTiming = {
+    indexLoadMs: number;
+    totalServerMs: number;
+    indexPlacesCount: number;
 };
 
 function pickQueryParam(q: string | string[] | undefined): string {
@@ -33,30 +38,35 @@ function pickQueryParam(q: string | string[] | undefined): string {
 }
 
 export default async function CautaPage({ searchParams }: CautaPageProps) {
+    const serverStart = Date.now();
     const sp = await searchParams;
     const initialQuery = pickQueryParam(sp.q);
 
     let index: GlobalSearchIndex = { cities: [], categories: [], places: [] };
+    let indexLoadMs = 0;
 
     try {
+        const indexStart = Date.now();
         index = await loadGlobalSearchIndex();
+        indexLoadMs = Date.now() - indexStart;
     } catch {
         index = { cities: [], categories: [], places: [] };
     }
 
+    const serverTiming: CautaServerTiming = {
+        indexLoadMs,
+        totalServerMs: Date.now() - serverStart,
+        indexPlacesCount: index.places.length,
+    };
+
     return (
         <main className="min-h-screen bg-gray-100 py-4">
             <div className="mx-auto max-w-4xl px-4">
-                <header className="mb-8 min-w-0 space-y-3 sm:space-y-4">
-                    <Breadcrumb
-                        items={[{ label: "Acasă", href: "/" }, { label: "Caută" }]}
-                    />
-                    <h1 className="text-center text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
-                        Caută
-                    </h1>
-                </header>
-
-                <GlobalSearchClient index={index} initialQuery={initialQuery} />
+                <GlobalSearchClient
+                    index={index}
+                    initialQuery={initialQuery}
+                    serverTiming={serverTiming}
+                />
             </div>
         </main>
     );

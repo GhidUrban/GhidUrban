@@ -582,6 +582,43 @@ export async function getPlacesByCategoryFromSupabase(
     return data ?? [];
 }
 
+/** Columns for `/cauta` global search index + public place cards. */
+export type PlaceSearchIndexRow = {
+    place_id: string;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+    address: string | null;
+    image: string | null;
+    rating: number | null;
+    featured: boolean | null;
+    featured_until: string | null;
+    plan_type: string | null;
+    plan_expires_at: string | null;
+};
+
+export async function getPlacesSearchIndexRowsFromSupabase(
+    citySlug: string,
+    categorySlug: string,
+): Promise<PlaceSearchIndexRow[]> {
+    const { data, error } = await supabase
+        .from("places")
+        .select(
+            "place_id, name, latitude, longitude, address, image, rating, featured, featured_until, plan_type, plan_expires_at",
+        )
+        .eq("city_slug", citySlug.trim())
+        .eq("category_slug", categorySlug.trim())
+        .eq("status", "available")
+        .order("name", { ascending: true });
+
+    if (error) {
+        console.error("Supabase places (search index) error:", error);
+        throw new Error("Failed to fetch places for search index");
+    }
+
+    return data ?? [];
+}
+
 
 export async function getPlaceByIdFromSupabase(
     citySlug: string,

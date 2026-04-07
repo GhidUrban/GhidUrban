@@ -1,4 +1,5 @@
 import type { GlobalSearchPlace } from "@/lib/load-global-search-index";
+import { haversineKm } from "@/lib/haversine-km";
 
 export function stripDiacritics(s: string): string {
     return s.normalize("NFD").replace(/\p{M}/gu, "");
@@ -6,9 +7,14 @@ export function stripDiacritics(s: string): string {
 
 export function normalizeForSearch(raw: string): string {
     let s = stripDiacritics(raw.trim().toLowerCase());
+    s = s.replace(/[^\p{L}\p{N}\s_-]+/gu, " ");
     s = s.replace(/[-_]+/g, " ");
     s = s.replace(/\s+/g, " ").trim();
     return s;
+}
+
+function compactForSearch(raw: string): string {
+    return normalizeForSearch(raw).replace(/\s+/g, "");
 }
 
 function levenshtein(a: string, b: string): number {
@@ -92,6 +98,28 @@ function nameTier(normQuery: string, normField: string): Tier {
     return "none";
 }
 
+function tolerantTier(normQuery: string, normField: string): Tier {
+    const direct = nameTier(normQuery, normField);
+    if (direct !== "none") {
+        return direct;
+    }
+    const qCompact = compactForSearch(normQuery);
+    const fCompact = compactForSearch(normField);
+    if (!qCompact.length || !fCompact.length) {
+        return "none";
+    }
+    if (fCompact === qCompact) {
+        return "exact";
+    }
+    if (fCompact.startsWith(qCompact)) {
+        return "starts";
+    }
+    if (fCompact.includes(qCompact)) {
+        return "includes";
+    }
+    return "none";
+}
+
 function tierScore(tier: Tier, high: number, mid: number, low: number): number {
     if (tier === "exact") {
         return high;
@@ -119,9 +147,11 @@ const DESC_INCLUDES = 100;
 
 const FUZZY_THRESHOLD = 0.62;
 const FUZZY_SCORE_BASE = 220;
+const LOCAL_RADIUS_KM = 20;
 
 export type ScoredPlace = GlobalSearchPlace & {
     score: number;
+    distanceKm?: number | null;
 };
 
 function strictScorePlace(p: GlobalSearchPlace, normQ: string): number {
@@ -130,57 +160,25 @@ function strictScorePlace(p: GlobalSearchPlace, normQ: string): number {
     }
 
     const normName = normalizeForSearch(p.name);
-    const normCityName = normalizeForSearch(p.city_name);
-    const normCitySlug = normalizeForSearch(p.city_slug.replace(/[-_]/g, " "));
-    const normCatName = normalizeForSearch(p.category_name || "");
-    const normCatSlug = normalizeForSearch(p.category_slug.replace(/[-_]/g, " "));
-    const normAddr = normalizeForSearch(p.address || "");
-    const normDesc = normalizeForSearch(p.description || "");
-
-    let score = 0;
-
-    const nt = nameTier(normQ, normName);
-    score += tierScore(nt, NAME_EXACT, NAME_STARTS, NAME_INCLUDES);
-
-    const cityBest = Math.max(
-        tierScore(nameTier(normQ, normCityName), CITY_EXACT, CITY_STARTS, CITY_INCLUDES),
-        tierScore(nameTier(normQ, normCitySlug), CITY_EXACT, CITY_STARTS, CITY_INCLUDES),
-    );
-    score += cityBest;
-
-    const catBest = Math.max(
-        tierScore(nameTier(normQ, normCatName), CAT_EXACT, CAT_STARTS, CAT_INCLUDES),
-        tierScore(nameTier(normQ, normCatSlug), CAT_EXACT, CAT_STARTS, CAT_INCLUDES),
-    );
-    score += catBest;
-
-    if (normAddr.includes(normQ)) {
-        score += ADDRESS_INCLUDES;
-    }
-    if (normDesc.includes(normQ)) {
-        score += DESC_INCLUDES;
-    }
-
-    return score;
+    const nt = tolerantTier(normQ, normName);
+    return tierScore(nt, NAME_EXACT, NAME_STARTS, NAME_INCLUDES);
 }
 
 function fuzzyScorePlace(p: GlobalSearchPlace, normQ: string): number {
     if (normQ.length < 2) {
         return 0;
     }
-    const candidates = [
-        normalizeForSearch(p.name),
-        normalizeForSearch(p.city_name),
-        normalizeForSearch(p.category_name || ""),
-        normalizeForSearch(p.address || ""),
-        normalizeForSearch(p.description || ""),
-    ];
+    const candidates = [normalizeForSearch(p.name), compactForSearch(p.name)];
     let best = 0;
+    const compactQ = compactForSearch(normQ);
     for (const c of candidates) {
         if (!c.length) {
             continue;
         }
         best = Math.max(best, bestTokenSimilarity(normQ, c));
+        if (compactQ.length) {
+            best = Math.max(best, bestTokenSimilarity(compactQ, c));
+        }
     }
     if (best < FUZZY_THRESHOLD) {
         return 0;
@@ -193,9 +191,35 @@ export type GlobalSearchOutcome = {
     usedFuzzyFallback: boolean;
 };
 
+type SearchUserLocation = {
+    lat: number;
+    lng: number;
+};
+
+function placeDistanceKm(
+    p: GlobalSearchPlace,
+    userLocation?: SearchUserLocation,
+): number | null {
+    if (!userLocation) return null;
+    if (p.latitude == null || p.longitude == null) return null;
+    const d = haversineKm(userLocation.lat, userLocation.lng, Number(p.latitude), Number(p.longitude));
+    if (!Number.isFinite(d)) return null;
+    return d;
+}
+
+function applyLocalRadius(
+    scored: ScoredPlace[],
+    userLocation?: SearchUserLocation,
+): ScoredPlace[] {
+    if (!userLocation) return scored;
+    // Location-active mode: keep only local, distance-known results.
+    return scored.filter((p) => p.distanceKm != null && p.distanceKm <= LOCAL_RADIUS_KM);
+}
+
 export function searchPlacesGlobal(
     places: GlobalSearchPlace[],
     rawQuery: string,
+    userLocation?: SearchUserLocation,
 ): GlobalSearchOutcome {
     const normQ = normalizeForSearch(rawQuery);
     if (!normQ.length) {
@@ -204,28 +228,44 @@ export function searchPlacesGlobal(
 
     const strict: ScoredPlace[] = [];
     for (const p of places) {
+        const distanceKm = placeDistanceKm(p, userLocation);
         const score = strictScorePlace(p, normQ);
         if (score > 0) {
-            strict.push({ ...p, score });
+            strict.push({ ...p, score, distanceKm });
         }
     }
-    strict.sort((a, b) => b.score - a.score);
-
+    strict.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const da = a.distanceKm ?? Number.POSITIVE_INFINITY;
+        const db = b.distanceKm ?? Number.POSITIVE_INFINITY;
+        return da - db;
+    });
     if (strict.length > 0) {
-        return { places: strict.slice(0, 100), usedFuzzyFallback: false };
+        const strictLocal = applyLocalRadius(strict, userLocation);
+        return { places: strictLocal.slice(0, 100), usedFuzzyFallback: false };
     }
 
     const fuzzy: ScoredPlace[] = [];
     for (const p of places) {
+        const distanceKm = placeDistanceKm(p, userLocation);
         const score = fuzzyScorePlace(p, normQ);
         if (score > 0) {
-            fuzzy.push({ ...p, score });
+            fuzzy.push({ ...p, score, distanceKm });
         }
     }
-    fuzzy.sort((a, b) => b.score - a.score);
+    fuzzy.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const da = a.distanceKm ?? Number.POSITIVE_INFINITY;
+        const db = b.distanceKm ?? Number.POSITIVE_INFINITY;
+        return da - db;
+    });
+    if (fuzzy.length === 0) {
+        return { places: [], usedFuzzyFallback: false };
+    }
 
+    const fuzzyLocal = applyLocalRadius(fuzzy, userLocation);
     return {
-        places: fuzzy.slice(0, 100),
-        usedFuzzyFallback: fuzzy.length > 0,
+        places: fuzzyLocal.slice(0, 100),
+        usedFuzzyFallback: fuzzyLocal.length > 0,
     };
 }

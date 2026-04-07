@@ -1,5 +1,6 @@
 /** sessionStorage key for user geolocation tied to a city visit (session tab). */
 export const SESSION_USER_LOCATION_KEY = "ghidurban:user_location";
+export const LOCATION_CHANGED_EVENT = "ghidurban-location-changed";
 
 const TTL_MS = 30 * 60 * 1000;
 
@@ -62,6 +63,12 @@ export function saveSessionUserLocation(input: {
   } catch {
     /* quota / private mode */
   }
+}
+
+/** Notify UI listeners that session location state changed. */
+export function dispatchSessionLocationChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(LOCATION_CHANGED_EVENT));
 }
 
 /**

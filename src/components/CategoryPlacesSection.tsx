@@ -5,7 +5,10 @@ import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { PlacesList } from "@/components/PlaceLists";
 import type { Place } from "@/data/places";
 import { haversineKm } from "@/lib/haversine-km";
-import { readSessionUserLocation } from "@/lib/session-user-location";
+import {
+  LOCATION_CHANGED_EVENT,
+  readSessionUserLocation,
+} from "@/lib/session-user-location";
 
 const NEARBY_MAX = 6;
 
@@ -36,10 +39,22 @@ export function CategoryPlacesSection({
     lng: number;
   } | null>(null);
 
-  useEffect(() => {
-    setHasMounted(true);
+  function syncSessionCoords(): void {
     const s = readSessionUserLocation(slug);
     setSessionCoords(s ? { lat: s.lat, lng: s.lng } : null);
+  }
+
+  useEffect(() => {
+    setHasMounted(true);
+    syncSessionCoords();
+
+    const onLocationChanged = () => {
+      syncSessionCoords();
+    };
+    window.addEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
+    return () => {
+      window.removeEventListener(LOCATION_CHANGED_EVENT, onLocationChanged);
+    };
   }, [slug]);
 
   const nearbyWithKm = useMemo(() => {

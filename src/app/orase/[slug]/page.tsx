@@ -66,7 +66,7 @@ export default async function CityPage({ params }: CityPageProps) {
                     ]}
                     title={cityName}
                     titleClassName="max-w-2xl"
-                    breadcrumbRowExtra={<CityGeolocationCard citySlug={slug} compact />}
+                    breadcrumbRowExtra={<CityGeolocationCard citySlug={slug} compact size="subtle" />}
                 />
 
                 <OraseCategorySearchGrid citySlug={slug} categories={categories} />

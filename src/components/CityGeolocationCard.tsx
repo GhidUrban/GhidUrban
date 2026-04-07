@@ -2,10 +2,17 @@
 
 import {
   clearSessionUserLocation,
+  dispatchSessionLocationChanged,
   readSessionUserLocation,
   saveSessionUserLocation,
 } from "@/lib/session-user-location";
 import { useCallback, useEffect, useState } from "react";
+import {
+  LOCATION_PILL_DOT,
+  locationPillBaseClass,
+  locationPillToneClass,
+  type LocationPillSize,
+} from "@/components/location-pill-style";
 
 type GeoStatus = "idle" | "loading" | "success" | "error";
 
@@ -13,23 +20,13 @@ type CityGeolocationCardProps = {
   citySlug: string;
   /** Inline (breadcrumb or search row): no outer vertical margins, slimmer pill. */
   compact?: boolean;
+  size?: LocationPillSize;
 };
-
-const pillBase =
-  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 select-none outline-none focus-visible:ring-2 focus-visible:ring-[#008fa8]/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:gap-2 sm:px-3.5 sm:py-2 sm:text-sm";
-
-const pillIdle =
-  "cursor-pointer bg-white border-black/10 text-[#0B2A3C] hover:border-black/20 hover:bg-gray-50";
-
-const pillLoading =
-  "cursor-wait bg-white border-black/10 text-gray-500 disabled:pointer-events-none disabled:opacity-100";
-
-const pillActive =
-  "cursor-pointer bg-[#2EC4B6]/10 border-[#2EC4B6]/20 text-[#0B2A3C] underline-offset-2 hover:bg-[#2EC4B6]/14 hover:border-[#2EC4B6]/35 hover:underline active:bg-[#2EC4B6]/12";
 
 export function CityGeolocationCard({
   citySlug,
   compact = false,
+  size = "compact",
 }: CityGeolocationCardProps) {
   const [status, setStatus] = useState<GeoStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -46,6 +43,7 @@ export function CityGeolocationCard({
 
   const handleDeactivate = useCallback(() => {
     clearSessionUserLocation();
+    dispatchSessionLocationChanged();
     setStatus("idle");
     setErrorMessage(null);
   }, []);
@@ -68,6 +66,7 @@ export function CityGeolocationCard({
           lng: longitude,
           citySlug,
         });
+        dispatchSessionLocationChanged();
         setStatus("success");
       },
       (err) => {
@@ -91,7 +90,9 @@ export function CityGeolocationCard({
       ? "Dezactivează locația"
       : "Folosește locația mea";
 
-  const pillStateClass = busy ? pillLoading : isActive ? pillActive : pillIdle;
+  const pillStateClass = `${locationPillToneClass(isActive, busy, size)} ${
+    busy ? "cursor-wait disabled:pointer-events-none disabled:opacity-100" : "cursor-pointer"
+  }`;
 
   return (
     <div
@@ -116,11 +117,11 @@ export function CityGeolocationCard({
           if (isActive) handleDeactivate();
           else handleUseLocation();
         }}
-        className={`${pillBase} ${pillStateClass}`}
+        className={`${locationPillBaseClass(size)} ${pillStateClass}`}
       >
         {isActive ? (
           <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2EC4B6] sm:h-2 sm:w-2"
+            className={`${LOCATION_PILL_DOT} shrink-0`}
             aria-hidden
           />
         ) : null}
