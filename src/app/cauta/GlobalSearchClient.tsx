@@ -387,7 +387,7 @@ export function GlobalSearchClient({
                         commitQuery(inputValue);
                     }}
                 >
-                    <div className="relative rounded-xl focus-within:ring-2 focus-within:ring-[#2EC4B6]/30">
+                    <div className="relative rounded-xl focus-within:ring-2 focus-within:ring-[#2EC4B6]/25">
                         <input
                             ref={inputRef}
                             id="global-search"
@@ -395,7 +395,7 @@ export function GlobalSearchClient({
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder="Caută oraș, categorie sau locație..."
-                            className="w-full appearance-none rounded-xl border border-black/10 bg-white px-4 py-2.5 pr-10 text-sm text-[#0B2A3C] caret-[#0B2A3C] outline-none shadow-none transition-colors duration-200 placeholder:text-gray-400 focus:border-black/20 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
+                            className="w-full appearance-none rounded-xl border border-black/10 bg-white px-4 py-2.5 pr-10 text-[16px] text-[#0B2A3C] caret-[#0B2A3C] outline-none shadow-none transition-colors duration-200 placeholder:text-gray-400 focus:border-black/10 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none md:text-sm"
                             autoComplete="off"
                             enterKeyHint="search"
                             aria-busy={showSpinner}
@@ -482,6 +482,9 @@ export function GlobalSearchClient({
                                             name: p.name,
                                             image: p.image ?? "",
                                             address: (p.address ?? "").trim(),
+                                            google_match_status: p.google_match_status ?? null,
+                                            google_photo_uri: p.google_photo_uri ?? null,
+                                            google_hours_raw: p.google_hours_raw ?? null,
                                             ...(ratingNum != null && ratingNum > 0
                                                 ? { rating: ratingNum }
                                                 : {}),

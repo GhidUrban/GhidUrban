@@ -8,6 +8,10 @@ import {
   saveSessionUserLocation,
 } from "@/lib/session-user-location";
 import {
+  DEFAULT_GEO_OPTIONS,
+  requestCurrentPositionWithRetry,
+} from "@/lib/geolocation-retry";
+import {
   LOCATION_PILL_DOT,
   locationPillBaseClass,
   locationPillToneClass,
@@ -29,6 +33,7 @@ export function SessionLocationIndicator({
 }: SessionLocationIndicatorProps) {
   const [active, setActive] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [inFlight, setInFlight] = useState(false);
 
   useEffect(() => {
     const s = readSessionUserLocation(citySlug);
@@ -36,10 +41,20 @@ export function SessionLocationIndicator({
   }, [citySlug]);
 
   const handleActivate = useCallback(() => {
+    if (inFlight) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    setInFlight(true);
     setBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    void requestCurrentPositionWithRetry(navigator.geolocation, DEFAULT_GEO_OPTIONS, {
+      retries: 2,
+      delayMs: 700,
+      onTemporaryRetry: (attempt) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.info(`[geo] temporary failure, retry ${attempt}/2`);
+        }
+      },
+    })
+      .then((position) => {
         const { latitude, longitude } = position.coords;
         saveSessionUserLocation({
           lat: latitude,
@@ -48,14 +63,15 @@ export function SessionLocationIndicator({
         });
         dispatchSessionLocationChanged();
         setActive(true);
+      })
+      .catch(() => {
+        // Keep existing UX here: no extra error label, just stop loading.
+      })
+      .finally(() => {
         setBusy(false);
-      },
-      () => {
-        setBusy(false);
-      },
-      { enableHighAccuracy: false, timeout: 12_000, maximumAge: 600_000 },
-    );
-  }, [citySlug]);
+        setInFlight(false);
+      });
+  }, [citySlug, inFlight]);
 
   const handleDeactivate = useCallback(() => {
     clearSessionUserLocation();

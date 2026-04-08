@@ -7,11 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "backfill:coords": "npx tsx scripts/backfill-place-coordinates.ts"
+    "backfill:coords": "npx tsx scripts/backfill-place-coordinates.ts",
+    "sync:google:city": "npx tsx scripts/sync-google-places-city.ts",
+    "sync:google:hours": "npx tsx scripts/sync-google-hours-city.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
     "bcrypt": "^6.0.0",
+    "dotenv": "^17.4.1",
     "jsonwebtoken": "^9.0.3",
     "next": "16.1.6",
     "react": "19.2.3",

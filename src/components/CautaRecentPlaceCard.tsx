@@ -2,64 +2,79 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-
-function getUsableImageSrc(raw: string | null | undefined): string | null {
-  const t = raw?.trim() ?? "";
-  return t.length > 0 ? t : null;
-}
+import type { RecentPlaceVisit } from "@/lib/cauta-recent-places";
+import {
+  PLACE_IMAGE_PLACEHOLDER,
+  resolveRecentVisitImageSrc,
+} from "@/lib/resolve-place-image-src";
 
 type CautaRecentPlaceCardProps = {
-  href: string;
-  name: string;
-  imageUrl?: string | null;
+  visit: RecentPlaceVisit;
   disabled?: boolean;
 };
 
-/** Compact tile: thumbnail + title only (Vizitate recent on /cauta). Not `PublicPlaceCard`. */
+/** Compact tile for „Vizitate recent” on /cauta. */
 export function CautaRecentPlaceCard({
-  href,
-  name,
-  imageUrl,
+  visit,
   disabled = false,
 }: CautaRecentPlaceCardProps) {
-  const src = getUsableImageSrc(imageUrl);
+  const resolved = resolveRecentVisitImageSrc({
+    category_slug: visit.category_slug,
+    image: visit.image,
+    google_match_status: visit.google_match_status,
+    google_photo_uri: visit.google_photo_uri,
+    image_url: visit.image_url,
+  });
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     setLoadFailed(false);
-  }, [imageUrl]);
+  }, [resolved]);
 
-  const showImage = src !== null && !loadFailed;
+  const src = loadFailed ? PLACE_IMAGE_PLACEHOLDER : resolved;
+  const showRating =
+    typeof visit.rating === "number" &&
+    Number.isFinite(visit.rating) &&
+    visit.rating > 0;
+  const categoryTrimmed = visit.category_name?.trim() ?? "";
+  const ratingText = showRating ? visit.rating : null;
 
   return (
     <Link
-      href={href}
-      className={`flex w-40 shrink-0 flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-[border-color,box-shadow] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/50 ${
+      href={visit.href}
+      className={`group flex w-[9.25rem] shrink-0 flex-col overflow-hidden rounded-xl border border-black/10 bg-white outline-none transition-[opacity,border-color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 ${
         disabled
           ? "pointer-events-none opacity-50"
-          : "hover:border-gray-200/90 hover:shadow"
+          : "active:opacity-95 md:hover:border-black/20 md:hover:bg-gray-50/80"
       }`}
       tabIndex={disabled ? -1 : undefined}
       aria-disabled={disabled ? true : undefined}
     >
-      <div className="relative h-28 w-full shrink-0 bg-gray-100">
-        {showImage && src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- same resolved URLs as PlaceImage
-          <img
-            src={src}
-            alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
-            onError={() => setLoadFailed(true)}
-          />
-        ) : (
-          <div className="h-full w-full bg-gray-100" aria-hidden />
-        )}
+      <div className="relative h-20 w-full shrink-0 overflow-hidden rounded-t-xl bg-gray-100">
+        {/* eslint-disable-next-line @next/next/no-img-element -- same resolved URLs as PlaceImage */}
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          loading="lazy"
+          onError={() => setLoadFailed(true)}
+        />
       </div>
-      <div className="flex min-h-[3.25rem] flex-col justify-start px-2.5 pb-2.5 pt-2">
-        <span className="line-clamp-2 text-left text-sm font-medium leading-snug text-gray-900">
-          {name}
+      <div className="flex flex-col px-2 py-1">
+        <span className="block min-h-5 min-w-0 truncate whitespace-nowrap text-left text-xs font-medium leading-5 text-gray-900">
+          {visit.name}
         </span>
+        <div className="mt-0.5 min-h-[11px]">
+          {ratingText != null ? (
+            <span className="block truncate text-[11px] tabular-nums leading-tight text-gray-500">
+              Notă {ratingText.toFixed(1)}
+            </span>
+          ) : categoryTrimmed.length > 0 ? (
+            <span className="block truncate whitespace-nowrap text-[11px] leading-tight text-gray-500">
+              {categoryTrimmed}
+            </span>
+          ) : null}
+        </div>
       </div>
     </Link>
   );

@@ -57,19 +57,21 @@ export function SimilarPlacesSection({ places, citySlug, categorySlug }: Similar
     const displayPlaces = sortedPlaces.slice(0, 6);
 
     return (
-        <section className="mt-8 border-t border-gray-200/70 pt-8 sm:mt-10 sm:pt-9">
+        <section className="mt-8 border-t border-gray-200/70 pt-8 px-6 sm:mt-10 sm:pt-9 md:px-8">
             <h2 className="text-base font-semibold tracking-tight text-gray-900 sm:text-lg">
                 Locuri similare
             </h2>
             <p className="mt-1 text-sm text-gray-500">Alte locuri din aceeași categorie.</p>
 
-            <div className="mt-5 flex gap-4 overflow-x-auto pb-2 sm:mt-6">
+            <div className="mt-5 overflow-x-auto pb-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:mt-6">
+                <div className="flex gap-2.5 md:gap-3">
                 {displayPlaces.map((p) => (
                     <div
                         key={`${citySlug}-${categorySlug}-${p.id}`}
-                        className="min-w-[240px] flex-shrink-0"
+                        className="min-w-[216px] shrink-0 md:min-w-[248px]"
                     >
                         <PublicPlaceCard
+                            variant="compact"
                             place={p}
                             citySlug={citySlug}
                             categorySlug={categorySlug}
@@ -80,6 +82,7 @@ export function SimilarPlacesSection({ places, citySlug, categorySlug }: Similar
                         />
                     </div>
                 ))}
+                </div>
             </div>
         </section>
     );

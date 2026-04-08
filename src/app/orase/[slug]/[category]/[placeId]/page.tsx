@@ -1,11 +1,19 @@
 import type { Metadata } from "next";
 import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
+import { InfoRow } from "@/components/InfoRow";
+import { MapOptionsButton } from "@/components/MapOptionsButton";
 import { PlaceImage } from "@/components/PlaceImage";
+import { PlaceOpenNowBadge } from "@/components/PlaceOpenNowBadge";
 import { RecordRecentPlaceVisit } from "@/components/RecordRecentPlaceVisit";
 import { SimilarPlacesSection } from "@/components/SimilarPlacesSection";
+import {
+    EN_DASH,
+    formatGoogleHoursRawToCompactLines,
+    tryBuildCompactScheduleFromPlainText,
+} from "@/lib/compact-opening-hours";
 import { apiGet } from "@/lib/internal-api";
-import { resolvePlaceImageAbsoluteUrl, resolvePlaceImageSrc } from "@/lib/place-image";
+import { resolvePlaceImageAbsoluteUrl } from "@/lib/place-image";
 import { slugToTitle } from "@/lib/slug";
 import { notFound } from "next/navigation";
 import type { Place } from "@/data/places";
@@ -20,11 +28,42 @@ function PlaceDetailMapPinIcon() {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="mt-1 h-4 w-4 shrink-0 text-gray-400"
-            aria-hidden
         >
             <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
             <circle cx="12" cy="10" r="3" />
+        </svg>
+    );
+}
+
+function PlaceDetailPhoneIcon() {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+    );
+}
+
+function PlaceDetailClockIcon() {
+    return (
+        <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 6v6l4 2" />
         </svg>
     );
 }
@@ -59,8 +98,6 @@ function clipMeta(text: string, max = 155): string {
     if (oneLine.length <= max) return oneLine;
     return `${oneLine.slice(0, max - 1).trimEnd()}…`;
 }
-
-const EN_DASH = "\u2013";
 
 function cleanScheduleDashes(text: string): string {
     let t = text;
@@ -192,6 +229,14 @@ export default async function PlacePage({ params }: PlacePageProps) {
     const hasAddress = Boolean(place.address?.trim());
     const phoneTrimmed = place.phone?.trim() ?? "";
     const hasPhone = phoneTrimmed.length > 0;
+    const formattedSchedule = formatSchedule(place.schedule);
+    const scheduleLines = formattedSchedule
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    const compactScheduleRows =
+        formatGoogleHoursRawToCompactLines(place.google_hours_raw) ??
+        tryBuildCompactScheduleFromPlainText(place.schedule);
 
     return (
         <main className="min-h-screen bg-gray-100 py-4">
@@ -203,11 +248,9 @@ export default async function PlacePage({ params }: PlacePageProps) {
                 category_slug={category}
                 category_name={categoryName}
                 href={placeHref}
-                image_url={resolvePlaceImageSrc(
-                    { id: place.id, image: place.image ?? "" },
-                    slug,
-                    category,
-                )}
+                image={place.image ?? ""}
+                google_match_status={place.google_match_status ?? null}
+                google_photo_uri={place.google_photo_uri ?? null}
                 address={place.address}
                 rating={place.rating}
             />
@@ -258,53 +301,89 @@ export default async function PlacePage({ params }: PlacePageProps) {
                     <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200/60 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                         {hasAddress ? (
                             <div className="px-5 py-3">
-                                <p className="text-xs font-medium text-gray-400/80">
-                                    Locație
-                                </p>
-                                <div className="mt-1.5 flex items-start gap-2">
-                                    <PlaceDetailMapPinIcon />
-                                    <p className="min-w-0 flex-1 break-words text-sm leading-5 text-gray-600">
-                                        {place.address}
-                                    </p>
-                                </div>
-                                {place.mapsUrl ? (
-                                    <a
-                                        href={place.mapsUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-2.5 inline-flex items-center text-sm font-medium text-gray-700 transition-colors hover:text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                    >
-                                        Vezi pe hartă
-                                    </a>
-                                ) : null}
+                                <InfoRow label="Locație" icon={<PlaceDetailMapPinIcon />}>
+                                    <p className="break-words leading-5 text-gray-600">{place.address}</p>
+                                </InfoRow>
+                                <MapOptionsButton placeName={place.name} address={place.address ?? ""} />
                             </div>
                         ) : null}
                         {hasPhone ? (
                             <div
                                 className={`px-5 py-3 ${hasAddress ? "border-t border-gray-200/70" : ""}`}
                             >
-                                <p className="text-xs font-medium text-gray-400/80">
-                                    Telefon
-                                </p>
-                                <a
-                                    href={phoneToTelHref(phoneTrimmed)}
-                                    aria-label={`Sună la ${phoneTrimmed}`}
-                                    className="mt-1.5 inline-block min-w-0 max-w-full text-sm font-medium tabular-nums text-gray-900 transition-colors hover:text-black hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-                                >
-                                    {phoneTrimmed}
-                                </a>
+                                <InfoRow label="Telefon" icon={<PlaceDetailPhoneIcon />}>
+                                    <a
+                                        href={phoneToTelHref(phoneTrimmed)}
+                                        aria-label={`Sună la ${phoneTrimmed}`}
+                                        className="font-medium tabular-nums text-gray-900 transition-colors hover:text-black hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                                    >
+                                        {phoneTrimmed}
+                                    </a>
+                                </InfoRow>
                             </div>
                         ) : null}
                         <div
                             className={`px-5 py-3 ${hasAddress || hasPhone ? "border-t border-gray-200/70" : ""}`}
                         >
-                            <p className="text-xs font-medium text-gray-400/80">
-                                Program
-                            </p>
-
-                            <p className="mt-1.5 whitespace-pre-line text-sm leading-5 text-gray-600">
-                                {formatSchedule(place.schedule)}
-                            </p>
+                            <InfoRow label="Program" icon={<PlaceDetailClockIcon />}>
+                                <div className="space-y-2">
+                                    <div className="empty:hidden">
+                                        <PlaceOpenNowBadge
+                                            googleHoursRaw={place.google_hours_raw}
+                                            size="md"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                    {compactScheduleRows !== null ? (
+                                        compactScheduleRows.map((line, i) => {
+                                            const colonIdx = line.indexOf(":");
+                                            if (colonIdx > 0) {
+                                                const dayLabel = line.slice(0, colonIdx).trim();
+                                                const rest = line.slice(colonIdx);
+                                                return (
+                                                    <p key={`compact-${i}`} className="text-sm leading-5 text-gray-600">
+                                                        <span className="font-medium text-gray-700">
+                                                            {dayLabel}
+                                                        </span>
+                                                        {rest}
+                                                    </p>
+                                                );
+                                            }
+                                            return (
+                                                <p key={`compact-${i}`} className="text-sm leading-5 text-gray-600">
+                                                    {line}
+                                                </p>
+                                            );
+                                        })
+                                    ) : scheduleLines.length <= 1 ? (
+                                        <p className="text-sm leading-5 text-gray-600">
+                                            {scheduleLines[0] ?? formattedSchedule}
+                                        </p>
+                                    ) : (
+                                        scheduleLines.map((line, i) => {
+                                            const colonIdx = line.indexOf(":");
+                                            if (colonIdx > 0) {
+                                                const dayLabel = line.slice(0, colonIdx).trim();
+                                                const rest = line.slice(colonIdx);
+                                                return (
+                                                    <p key={i} className="text-sm leading-5 text-gray-600">
+                                                        <span className="font-medium text-gray-700">
+                                                            {dayLabel}
+                                                        </span>
+                                                        {rest}
+                                                    </p>
+                                                );
+                                            }
+                                            return (
+                                                <p key={i} className="text-sm leading-5 text-gray-600">
+                                                    {line}
+                                                </p>
+                                            );
+                                        })
+                                    )}
+                                    </div>
+                                </div>
+                            </InfoRow>
                         </div>
                     </div>
                 </article>

@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
-import { getCategoryPlaceholder } from "@/lib/place-image";
 
 type SectionRow = {
   place_id: string;
   name: string;
   address: string;
   image: string;
+  google_match_status: string | null;
+  google_photo_uri: string | null;
+  google_hours_raw: unknown | null;
   rating: number;
   city_slug: string;
   category_slug: string;
@@ -22,6 +24,9 @@ type RecItem = {
   name: string;
   address: string | null;
   image: string | null;
+  google_match_status: string | null;
+  google_photo_uri: string | null;
+  google_hours_raw: unknown | null;
   rating: number | null;
   city_slug: string;
   category_slug: string;
@@ -40,6 +45,9 @@ type PlaceFromApi = {
   name: string;
   address?: string;
   image?: string;
+  google_match_status?: string | null;
+  google_photo_uri?: string | null;
+  google_hours_raw?: unknown | null;
   rating?: number;
   activeFeatured?: boolean;
   activePromoted?: boolean;
@@ -84,11 +92,22 @@ function parseRecItems(raw: unknown): RecItem[] {
     ) {
       continue;
     }
+    const gms =
+      typeof o.google_match_status === "string" ? o.google_match_status.trim() : null;
+    const gpu =
+      typeof o.google_photo_uri === "string" ? o.google_photo_uri.trim() : null;
+    const ghr =
+      o.google_hours_raw != null && typeof o.google_hours_raw === "object"
+        ? o.google_hours_raw
+        : null;
     out.push({
       place_id,
       name,
       address: typeof o.address === "string" ? o.address : null,
       image: typeof o.image === "string" ? o.image : null,
+      google_match_status: gms && gms.length > 0 ? gms : null,
+      google_photo_uri: gpu && gpu.length > 0 ? gpu : null,
+      google_hours_raw: ghr,
       rating:
         typeof o.rating === "number" && Number.isFinite(o.rating) ? o.rating : null,
       city_slug,
@@ -106,7 +125,10 @@ function recToRow(r: RecItem): SectionRow {
     place_id: r.place_id,
     name: r.name,
     address: r.address?.trim() ?? "",
-    image: r.image?.trim() || getCategoryPlaceholder(r.category_slug),
+    image: r.image?.trim() ?? "",
+    google_match_status: r.google_match_status,
+    google_photo_uri: r.google_photo_uri,
+    google_hours_raw: r.google_hours_raw,
     rating: r.rating ?? 0,
     city_slug: r.city_slug,
     category_slug: r.category_slug,
@@ -125,7 +147,15 @@ function placesToRows(
     place_id: p.id,
     name: p.name,
     address: (p.address ?? "").trim(),
-    image: (p.image ?? "").trim() || getCategoryPlaceholder(category_slug),
+    image: (p.image ?? "").trim(),
+    google_match_status:
+      typeof p.google_match_status === "string" ? p.google_match_status.trim() || null : null,
+    google_photo_uri:
+      typeof p.google_photo_uri === "string" ? p.google_photo_uri.trim() || null : null,
+    google_hours_raw:
+      p.google_hours_raw != null && typeof p.google_hours_raw === "object"
+        ? p.google_hours_raw
+        : null,
     rating:
       typeof p.rating === "number" && Number.isFinite(p.rating) ? p.rating : 0,
     city_slug,
@@ -374,6 +404,9 @@ function NearbyRecommendationsSection({
               name: row.name,
               address: row.address,
               image: row.image,
+              google_match_status: row.google_match_status,
+              google_photo_uri: row.google_photo_uri,
+              google_hours_raw: row.google_hours_raw,
               rating: row.rating,
             }}
             citySlug={row.city_slug}

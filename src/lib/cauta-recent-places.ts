@@ -9,7 +9,11 @@ export type RecentPlaceVisit = {
     category_slug: string;
     category_name: string;
     href: string;
-    /** Optional thumbnail (e.g. `/images/...` from place listing). */
+    /** Raw DB path / URL; used with `resolvePlaceImageSrc`. */
+    image?: string | null;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    /** Legacy: pre-resolved thumb only (before raw fields were stored). */
     image_url?: string | null;
     address?: string | null;
     rating?: number | null;
@@ -43,10 +47,18 @@ function safeRead(): RecentPlaceVisit[] {
             const category_slug = typeof r.category_slug === "string" ? r.category_slug : "";
             const category_name = typeof r.category_name === "string" ? r.category_name : "";
             const href = typeof r.href === "string" ? r.href : "";
-            const rawThumb =
-                (typeof r.image_url === "string" && r.image_url.length > 0 ? r.image_url : null) ??
-                (typeof r.image === "string" && r.image.length > 0 ? r.image : null);
-            const image_url = rawThumb;
+            const image =
+                typeof r.image === "string" ? r.image : undefined;
+            const google_match_status =
+                typeof r.google_match_status === "string"
+                    ? r.google_match_status.trim() || null
+                    : null;
+            const google_photo_uri =
+                typeof r.google_photo_uri === "string"
+                    ? r.google_photo_uri.trim() || null
+                    : null;
+            const image_url =
+                typeof r.image_url === "string" && r.image_url.length > 0 ? r.image_url : null;
             const address = typeof r.address === "string" ? r.address : null;
             let rating: number | null = null;
             if (typeof r.rating === "number" && Number.isFinite(r.rating)) {
@@ -61,7 +73,10 @@ function safeRead(): RecentPlaceVisit[] {
                 category_slug,
                 category_name,
                 href,
-                image_url,
+                ...(image !== undefined ? { image } : {}),
+                ...(google_match_status != null ? { google_match_status } : {}),
+                ...(google_photo_uri != null ? { google_photo_uri } : {}),
+                ...(image_url != null ? { image_url } : {}),
                 address,
                 rating,
             });

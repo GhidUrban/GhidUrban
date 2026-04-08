@@ -11,7 +11,9 @@ type Props = {
     category_slug: string;
     category_name: string;
     href: string;
-    image_url?: string | null;
+    image?: string;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
     address?: string;
     rating?: number;
 };
@@ -24,7 +26,9 @@ export function RecordRecentPlaceVisit({
     category_slug,
     category_name,
     href,
-    image_url = null,
+    image = "",
+    google_match_status = null,
+    google_photo_uri = null,
     address = "",
     rating,
 }: Props) {
@@ -43,7 +47,9 @@ export function RecordRecentPlaceVisit({
             category_slug,
             category_name,
             href,
-            image_url: image_url || null,
+            image: image.trim(),
+            google_match_status: google_match_status ?? null,
+            google_photo_uri: google_photo_uri ?? null,
             address: address.trim() || null,
             rating: typeof rating === "number" && Number.isFinite(rating) ? rating : null,
         });
@@ -55,7 +61,9 @@ export function RecordRecentPlaceVisit({
         category_slug,
         category_name,
         href,
-        image_url,
+        image,
+        google_match_status,
+        google_photo_uri,
         address,
         rating,
     ]);

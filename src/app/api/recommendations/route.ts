@@ -130,6 +130,9 @@ export async function GET(request: Request) {
             distance_km: Number.isFinite(p.distance_km) ? Math.round(p.distance_km * 10) / 10 : 0,
             is_featured: p.active_featured === true,
             is_promoted: p.active_promoted === true,
+            google_match_status: p.google_match_status ?? null,
+            google_photo_uri: p.google_photo_uri ?? null,
+            google_hours_raw: p.google_hours_raw ?? null,
         }));
 
         return NextResponse.json({

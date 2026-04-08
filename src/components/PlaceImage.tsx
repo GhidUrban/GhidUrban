@@ -6,10 +6,11 @@ import type { Place } from "@/data/places";
 import {
   PLACE_IMAGE_PLACEHOLDER,
   resolvePlaceImageSrc,
+  type PlaceImageFields,
 } from "@/lib/place-image";
 
 type PlaceImageProps = {
-  place: Pick<Place, "id" | "image" | "name">;
+  place: Pick<Place, "name"> & PlaceImageFields;
   citySlug: string;
   categorySlug: string;
   width: number;
@@ -27,7 +28,12 @@ export function PlaceImage({
   className,
   priority,
 }: PlaceImageProps) {
-  const resolved = resolvePlaceImageSrc(place, citySlug, categorySlug);
+  const resolved = resolvePlaceImageSrc({
+    image: place.image,
+    google_match_status: place.google_match_status,
+    google_photo_uri: place.google_photo_uri,
+    category_slug: categorySlug,
+  });
   const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {

@@ -6,7 +6,11 @@ import {
   readSessionUserLocation,
   saveSessionUserLocation,
 } from "@/lib/session-user-location";
-import { useCallback, useEffect, useState } from "react";
+import {
+  DEFAULT_GEO_OPTIONS,
+  requestCurrentPositionWithRetry,
+} from "@/lib/geolocation-retry";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   LOCATION_PILL_DOT,
   locationPillBaseClass,
@@ -30,6 +34,7 @@ export function CityGeolocationCard({
 }: CityGeolocationCardProps) {
   const [status, setStatus] = useState<GeoStatus>("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     const existing = readSessionUserLocation(citySlug);
@@ -49,17 +54,27 @@ export function CityGeolocationCard({
   }, []);
 
   const handleUseLocation = useCallback(() => {
+    if (inFlightRef.current) return;
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setStatus("error");
       setErrorMessage("Geolocația nu e disponibilă.");
       return;
     }
 
+    inFlightRef.current = true;
     setStatus("loading");
     setErrorMessage(null);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    void requestCurrentPositionWithRetry(navigator.geolocation, DEFAULT_GEO_OPTIONS, {
+      retries: 2,
+      delayMs: 700,
+      onTemporaryRetry: (attempt) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.info(`[geo] temporary failure, retry ${attempt}/2`);
+        }
+      },
+    })
+      .then((position) => {
         const { latitude, longitude } = position.coords;
         saveSessionUserLocation({
           lat: latitude,
@@ -68,17 +83,18 @@ export function CityGeolocationCard({
         });
         dispatchSessionLocationChanged();
         setStatus("success");
-      },
-      (err) => {
+      })
+      .catch((err: GeolocationPositionError) => {
         setStatus("error");
         setErrorMessage(
           err.code === err.PERMISSION_DENIED
             ? "Acces refuzat."
             : "Nu am putut obține locația.",
         );
-      },
-      { enableHighAccuracy: false, timeout: 12_000, maximumAge: 600_000 },
-    );
+      })
+      .finally(() => {
+        inFlightRef.current = false;
+      });
   }, [citySlug]);
 
   const busy = status === "loading";

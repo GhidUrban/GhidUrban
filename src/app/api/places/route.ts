@@ -144,6 +144,9 @@ export async function GET(request: Request) {
                 listingTierRank,
                 latitude: p.latitude,
                 longitude: p.longitude,
+                google_match_status: p.google_match_status ?? null,
+                google_photo_uri: p.google_photo_uri ?? null,
+                google_hours_raw: p.google_hours_raw ?? null,
             };
         });
         const filteredPlaces = filterPlaces(places, search);

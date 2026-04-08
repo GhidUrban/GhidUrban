@@ -81,6 +81,9 @@ export async function GET(request: Request) {
             activeFeatured,
             activePromoted,
             listingTierRank,
+            google_match_status: supabasePlace.google_match_status ?? null,
+            google_photo_uri: supabasePlace.google_photo_uri ?? null,
+            google_hours_raw: supabasePlace.google_hours_raw ?? null,
         };
 
         return ok("Place fetched successfully", {

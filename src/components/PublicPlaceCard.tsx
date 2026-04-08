@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { PlaceImage } from "@/components/PlaceImage";
+import { PlaceOpenNowBadge } from "@/components/PlaceOpenNowBadge";
 import type { Place } from "@/data/places";
 
 function AddressPinIcon({ className }: { className?: string }) {
@@ -24,7 +25,12 @@ function AddressPinIcon({ className }: { className?: string }) {
 }
 
 export type PublicPlaceCardProps = {
-  place: Pick<Place, "id" | "image" | "name" | "address"> & { rating?: number };
+  place: Pick<Place, "id" | "image" | "name" | "address"> & {
+    rating?: number;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    google_hours_raw?: unknown | null;
+  };
   citySlug: string;
   categorySlug: string;
   activeFeatured: boolean;
@@ -37,6 +43,8 @@ export type PublicPlaceCardProps = {
   statusLabel?: "available" | "hidden";
   /** Optional title node (e.g. search highlight). */
   titleContent?: ReactNode;
+  /** Lighter card: shorter image, no address (e.g. similar places strip). */
+  variant?: "default" | "compact";
 };
 
 export function PublicPlaceCard({
@@ -49,7 +57,9 @@ export function PublicPlaceCard({
   href,
   statusLabel,
   titleContent,
+  variant = "default",
 }: PublicPlaceCardProps) {
+  const isCompact = variant === "compact";
   const isFeatured = activeFeatured;
   const isPromotedOnly = activePromoted && !isFeatured;
   const showNearby =
@@ -63,14 +73,14 @@ export function PublicPlaceCard({
       : null;
 
   const shellClass =
-    "group block h-full rounded-2xl outline-none transition-opacity duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-90";
+    "group block h-full rounded-2xl outline-none transition-opacity duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-95";
 
   const cardToneClass =
     "h-full cursor-pointer overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-shadow duration-200 ease-out md:group-hover:shadow";
 
   const cardInner = (
     <div className={cardToneClass}>
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden rounded-t-2xl">
         {showNearby ? (
           <div className="pointer-events-none absolute left-2 top-2 z-10">
             <span className="inline-flex rounded-md border border-black/[0.06] bg-white/95 px-2 py-0.5 text-[11px] font-medium tabular-nums text-gray-600">
@@ -84,41 +94,58 @@ export function PublicPlaceCard({
           categorySlug={categorySlug || "preview"}
           width={600}
           height={400}
-          className="h-40 w-full object-cover transition-transform duration-200 ease-out md:group-hover:scale-[1.01]"
+          className={`${isCompact ? "h-28" : "h-40"} w-full object-cover transition-transform duration-200 ease-out md:group-hover:scale-[1.01]`}
         />
       </div>
-      <div className="p-3">
+      <div className={isCompact ? "p-2.5" : "p-2.5 sm:p-3"}>
         {isFeatured ? (
-          <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center gap-2 ${isCompact ? "mb-1" : "mb-1.5"}`}>
             <span className="inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-700 ring-1 ring-inset ring-yellow-200">
               Promovat
             </span>
           </div>
         ) : isPromotedOnly ? (
-          <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className={`flex flex-wrap items-center gap-2 ${isCompact ? "mb-1" : "mb-1.5"}`}>
             <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
               Recomandat
             </span>
           </div>
         ) : null}
-        <h3 className="min-w-0 text-sm font-semibold leading-snug text-gray-900 line-clamp-2">
+        <h3
+          className={
+            isCompact
+              ? "block min-h-5 min-w-0 truncate whitespace-nowrap text-sm font-semibold leading-5 text-gray-900"
+              : "min-w-0 overflow-hidden break-words text-sm font-semibold leading-snug text-gray-900 line-clamp-2"
+          }
+        >
           {titleContent ?? place.name}
         </h3>
-        {place.address?.trim() ? (
+        <div className="empty:hidden mt-1">
+          <PlaceOpenNowBadge googleHoursRaw={place.google_hours_raw} />
+        </div>
+        {!isCompact && place.address?.trim() ? (
           <div className="mt-1 flex items-center gap-1">
             <AddressPinIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <p className="min-w-0 text-sm leading-snug text-gray-500">{place.address.trim()}</p>
+            <p className="min-w-0 text-sm leading-snug text-gray-600">{place.address.trim()}</p>
           </div>
         ) : null}
         {ratingText ? (
-          <p className="mt-2 text-sm font-medium leading-snug text-gray-700">{ratingText}</p>
+          <p
+            className={
+              isCompact
+                ? "mt-0.5 text-xs font-normal tabular-nums leading-snug text-gray-600"
+                : "mt-1.5 text-sm font-medium leading-snug text-gray-600"
+            }
+          >
+            {ratingText}
+          </p>
         ) : null}
         {statusLabel ? (
           <p
             className={
               statusLabel === "available"
-                ? "mt-3 border-t border-gray-100 pt-2 text-xs text-green-700/80"
-                : "mt-3 border-t border-gray-100 pt-2 text-xs text-gray-500"
+                ? "mt-2 border-t border-gray-100 pt-1.5 text-xs text-green-700/80"
+                : "mt-2 border-t border-gray-100 pt-1.5 text-xs text-gray-500"
             }
           >
             {statusLabel === "available" ? "Public: visible" : "Public: hidden"}

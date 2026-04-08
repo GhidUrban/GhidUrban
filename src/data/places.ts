@@ -18,6 +18,11 @@ export type Place = {
     /** Coordonate WGS84 din DB; lipsă = nu putem calcula distanță locală. */
     latitude?: number | null;
     longitude?: number | null;
+    /** Din sync Google; folosit la imagine doar dacă `matched`. */
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    /** Obiect Google OpeningHours (json); UI folosește formatter compact, nu textul brut. */
+    google_hours_raw?: unknown | null;
 };
 
 const IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";

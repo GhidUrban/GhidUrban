@@ -96,6 +96,9 @@ export type SupabasePlace = {
     /** Prezent pe rândurile din `getPlacesByCategoryFromSupabase` / similar. */
     latitude?: number | null;
     longitude?: number | null;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    google_hours_raw?: unknown | null;
 };
 
 export type PlaceVisibilityStatus = "available" | "hidden";
@@ -567,7 +570,7 @@ export async function getPlacesByCategoryFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -595,6 +598,9 @@ export type PlaceSearchIndexRow = {
     featured_until: string | null;
     plan_type: string | null;
     plan_expires_at: string | null;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    google_hours_raw?: unknown | null;
 };
 
 export async function getPlacesSearchIndexRowsFromSupabase(
@@ -604,7 +610,7 @@ export async function getPlacesSearchIndexRowsFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, latitude, longitude, address, image, rating, featured, featured_until, plan_type, plan_expires_at",
+            "place_id, name, latitude, longitude, address, image, rating, featured, featured_until, plan_type, plan_expires_at, google_match_status, google_photo_uri, google_hours_raw",
         )
         .eq("city_slug", citySlug.trim())
         .eq("category_slug", categorySlug.trim())
@@ -628,7 +634,7 @@ export async function getPlaceByIdFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -657,6 +663,9 @@ export type RecommendedPlaceRow = {
     active_featured: boolean;
     active_promoted: boolean;
     listing_tier_rank: number;
+    google_match_status?: string | null;
+    google_photo_uri?: string | null;
+    google_hours_raw?: unknown | null;
 };
 
 type RecommendationOptions = {
@@ -685,7 +694,7 @@ export async function getNearbyRecommendedPlacesFromSupabase(
     let query = supabase
         .from("places")
         .select(
-            "place_id, city_slug, category_slug, name, address, image, rating, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude",
+            "place_id, city_slug, category_slug, name, address, image, rating, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
         )
         .eq("status", "available")
         .not("latitude", "is", null)
@@ -757,6 +766,9 @@ export async function getNearbyRecommendedPlacesFromSupabase(
             active_featured,
             active_promoted,
             listing_tier_rank,
+            google_match_status: raw.google_match_status ?? null,
+            google_photo_uri: raw.google_photo_uri ?? null,
+            google_hours_raw: raw.google_hours_raw ?? null,
         });
     }
 
