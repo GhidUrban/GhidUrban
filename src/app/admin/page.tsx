@@ -41,6 +41,7 @@ export default function AdminPage() {
     const [togglingId, setTogglingId] = useState<string | null>(null);
     const [featuredTogglingId, setFeaturedTogglingId] = useState<string | null>(null);
     const [pendingReviewCount, setPendingReviewCount] = useState<number | null>(null);
+    const [googleReviewCount, setGoogleReviewCount] = useState<number | null>(null);
 
     useEffect(() => {
         async function loadPendingSubmissionsCount() {
@@ -62,7 +63,27 @@ export default function AdminPage() {
                 setPendingReviewCount(null);
             }
         }
+        async function loadGoogleReviewCount() {
+            try {
+                const res = await fetch("/api/admin/places/google-match-review", {
+                    credentials: "include",
+                    cache: "no-store",
+                });
+                const json = (await res.json()) as {
+                    success?: boolean;
+                    data?: { count?: number };
+                };
+                if (res.ok && json.success && json.data && typeof json.data.count === "number") {
+                    setGoogleReviewCount(json.data.count);
+                } else {
+                    setGoogleReviewCount(null);
+                }
+            } catch {
+                setGoogleReviewCount(null);
+            }
+        }
         void loadPendingSubmissionsCount();
+        void loadGoogleReviewCount();
     }, []);
 
     useEffect(() => {
@@ -264,6 +285,9 @@ export default function AdminPage() {
             ? "Cereri verificare"
             : `Cereri verificare (${pendingReviewCount})`;
 
+    const reviewGoogleLabel =
+        googleReviewCount === null ? "Review Google" : `Review Google (${googleReviewCount})`;
+
     if (hasError) {
         return (
             <main className="min-h-screen bg-gray-100 px-4 py-6">
@@ -289,6 +313,12 @@ export default function AdminPage() {
                                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-400 bg-gray-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100"
                             >
                                 {cereriVerificareLabel}
+                            </Link>
+                            <Link
+                                href="/admin/google-match-review"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-950 transition hover:bg-amber-100"
+                            >
+                                {reviewGoogleLabel}
                             </Link>
                             <Link
                                 href="/admin/cities"
@@ -335,6 +365,12 @@ export default function AdminPage() {
                                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-gray-400 bg-gray-50 px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-gray-100"
                             >
                                 {cereriVerificareLabel}
+                            </Link>
+                            <Link
+                                href="/admin/google-match-review"
+                                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-medium text-amber-950 transition hover:bg-amber-100"
+                            >
+                                {reviewGoogleLabel}
                             </Link>
                             <Link
                                 href="/admin/cities"

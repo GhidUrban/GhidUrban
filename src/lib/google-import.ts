@@ -1,6 +1,6 @@
 /**
- * Google Places API (New) — import preview: cheap search → score → top 40 → optional details.
- * Search requests use minimal field masks; Place Details only for the final shortlist.
+ * Google Places API (New) — import preview: cheap search → score → top N → Place Details only for that shortlist.
+ * Search requests use minimal field masks; Place Details only for the final shortlist (see GOOGLE_IMPORT_PREVIEW_TOP_N).
  */
 
 import { haversineKm } from "@/lib/haversine-km";
@@ -21,11 +21,17 @@ const DETAILS_FIELD_MASK =
 
 const DETAILS_DELAY_MS = 120;
 
-/** După scor + filtre: câte rânduri intră în previzualizare (detalii Places doar pentru acestea). */
-const GOOGLE_IMPORT_PREVIEW_TOP_N = 40;
+/**
+ * Max preview rows returned to admin (each gets one Place Details call — main billing driver).
+ * Exported for admin copy; change only here.
+ */
+export const GOOGLE_IMPORT_PREVIEW_TOP_N = 60;
 
-/** Țintă pentru candidați bruti din search (înainte de dedupe); Places permite max 20/pagină sau /request. */
-const GOOGLE_IMPORT_RAW_CANDIDATE_TARGET = 40;
+/**
+ * Raw candidates to pull from search before dedupe / distance / category filters.
+ * Must stay above preview cap so enough rows survive filters (same pageSize/pagination logic).
+ */
+const GOOGLE_IMPORT_RAW_CANDIDATE_TARGET = Math.max(100, GOOGLE_IMPORT_PREVIEW_TOP_N * 2);
 
 /** Google Places (New): maxim rezultate per cerere searchNearby / pagină searchText. */
 const GOOGLE_IMPORT_SEARCH_PAGE_SIZE = 20;

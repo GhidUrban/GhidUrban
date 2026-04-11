@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchAdminCitiesForSelect, type AdminCitySelectRow } from "@/lib/admin-load-cities";
+import { GOOGLE_IMPORT_PREVIEW_TOP_N } from "@/lib/google-import";
 import { GOOGLE_IMPORT_SUPPORTED_CATEGORIES } from "@/lib/google-import-categories";
+import type { GoogleImportCoverageRow } from "@/lib/place-repository";
 import { IMPORT_CATEGORY_OSM_FILTERS } from "@/lib/import-categories";
 
 type ImportDraftResult = {
@@ -82,11 +84,16 @@ export default function AdminImportPage() {
     const [errorMessage, setErrorMessage] = useState("");
     const [isImporting, setIsImporting] = useState(false);
     const [importError, setImportError] = useState("");
-    const [importSummary, setImportSummary] = useState<null | { inserted: number; skipped: number }>(
-        null
-    );
+    const [importSummary, setImportSummary] = useState<
+        null | { inserted: number; merged: number; skipped: number }
+    >(null);
     const [resultLimit, setResultLimit] = useState<20 | 50 | 100>(50);
     const [adminCityRows, setAdminCityRows] = useState<AdminCitySelectRow[]>([]);
+    const [googleCoverageRows, setGoogleCoverageRows] = useState<GoogleImportCoverageRow[] | null>(
+        null,
+    );
+    const [googleCoverageLoading, setGoogleCoverageLoading] = useState(false);
+    const [googleCoverageError, setGoogleCoverageError] = useState("");
 
     useEffect(() => {
         let cancelled = false;
@@ -99,6 +106,49 @@ export default function AdminImportPage() {
             cancelled = true;
         };
     }, []);
+
+    useEffect(() => {
+        if (importSource !== "google") {
+            return;
+        }
+        let cancelled = false;
+        setGoogleCoverageLoading(true);
+        setGoogleCoverageError("");
+        void (async () => {
+            try {
+                const res = await fetch("/api/admin/import/google-coverage", {
+                    credentials: "include",
+                    cache: "no-store",
+                });
+                const json = (await res.json()) as {
+                    success?: boolean;
+                    message?: string;
+                    data?: { rows?: GoogleImportCoverageRow[] };
+                };
+                if (cancelled) {
+                    return;
+                }
+                if (!res.ok || !json.success) {
+                    setGoogleCoverageRows(null);
+                    setGoogleCoverageError(json.message || "Nu s-a putut încărca lista.");
+                    return;
+                }
+                setGoogleCoverageRows(Array.isArray(json.data?.rows) ? json.data!.rows! : []);
+            } catch {
+                if (!cancelled) {
+                    setGoogleCoverageRows(null);
+                    setGoogleCoverageError("Nu s-a putut contacta serverul.");
+                }
+            } finally {
+                if (!cancelled) {
+                    setGoogleCoverageLoading(false);
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [importSource]);
 
     const cityOptions = useMemo(
         () =>
@@ -222,7 +272,7 @@ export default function AdminImportPage() {
             const json = (await response.json()) as {
                 success?: boolean;
                 message?: string;
-                data?: { inserted?: number; skipped?: number };
+                data?: { inserted?: number; merged?: number; skipped?: number };
             };
 
             if (!response.ok || !json.success) {
@@ -231,8 +281,9 @@ export default function AdminImportPage() {
             }
 
             const inserted = json.data?.inserted ?? 0;
+            const merged = json.data?.merged ?? 0;
             const skipped = json.data?.skipped ?? 0;
-            setImportSummary({ inserted, skipped });
+            setImportSummary({ inserted, merged, skipped });
             setSelectedIds(new Set());
             // Google preview images are temporary and are not persisted; clear list so thumbnails disappear after save.
             setResults(null);
@@ -325,7 +376,8 @@ export default function AdminImportPage() {
 
                 <h1 className="text-2xl font-semibold text-gray-900">Import locații</h1>
                 <p className="mt-1 text-sm text-gray-600">
-                    OSM: date comunitare. Google: top 40 după scor (Places API New), previzualizare înainte de salvare.
+                    OSM: date comunitare. Google: top {GOOGLE_IMPORT_PREVIEW_TOP_N} după scor (Places API New),
+                    previzualizare înainte de salvare.
                 </p>
 
                 <div className="mb-4 mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
@@ -350,15 +402,65 @@ export default function AdminImportPage() {
                             }`}
                             onClick={() => setImportSource("google")}
                         >
-                            Google (Top 40)
+                            Google (Top {GOOGLE_IMPORT_PREVIEW_TOP_N})
                         </button>
                     </div>
                     {importSource === "google" ? (
                         <p className="text-xs text-gray-600 sm:max-w-md">
-                            Google import folosește mereu top 40 după scor.
+                            Google import folosește mereu top {GOOGLE_IMPORT_PREVIEW_TOP_N} după scor (un apel
+                            Place Details per rând).
                         </p>
                     ) : null}
                 </div>
+
+                {importSource === "google" ? (
+                    <div className="mt-4 rounded-xl border border-amber-200/80 bg-amber-50/50 px-4 py-3 text-sm text-gray-800">
+                        <p className="font-medium text-gray-900">Loturi mici, după acoperire</p>
+                        <p className="mt-1 text-xs text-gray-600">
+                            Categorii Google vs orașe din admin. Sortare: cele mai puține locuri
+                            primele. Alege o combinație, apoi „Caută locații” (aceeași logică ca înainte).
+                        </p>
+                        {googleCoverageLoading ? (
+                            <p className="mt-2 text-xs text-gray-500">Se încarcă acoperirea…</p>
+                        ) : googleCoverageError ? (
+                            <p className="mt-2 text-xs text-red-700">{googleCoverageError}</p>
+                        ) : googleCoverageRows && googleCoverageRows.length > 0 ? (
+                            <ul className="mt-3 flex flex-wrap gap-2">
+                                {googleCoverageRows.slice(0, 18).map((r) => {
+                                    const active =
+                                        citySlug === r.city_slug && categorySlug === r.category_slug;
+                                    const catLabel = CATEGORY_LABELS[r.category_slug] ?? r.category_slug;
+                                    const cityLabel = r.city_name?.trim() || r.city_slug;
+                                    return (
+                                        <li key={`${r.city_slug}-${r.category_slug}`}>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCitySlug(r.city_slug);
+                                                    setCategorySlug(r.category_slug);
+                                                }}
+                                                className={`rounded-md border px-2.5 py-1.5 text-left text-xs transition ${
+                                                    active
+                                                        ? "border-blue-500 bg-blue-50 text-blue-950 ring-1 ring-blue-400"
+                                                        : "border-gray-200 bg-white text-gray-800 hover:border-gray-300 hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                <span className="font-medium">{cityLabel}</span>
+                                                <span className="text-gray-500"> · </span>
+                                                <span>{catLabel}</span>
+                                                <span className="ml-1 tabular-nums text-gray-500">
+                                                    ({r.place_count})
+                                                </span>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        ) : (
+                            <p className="mt-2 text-xs text-gray-500">Nu sunt date de acoperire.</p>
+                        )}
+                    </div>
+                ) : null}
 
                 <form
                     onSubmit={handleSearch}
@@ -628,8 +730,9 @@ export default function AdminImportPage() {
                             ) : null}
                             {importSummary ? (
                                 <p className="mt-3 text-sm text-green-800">
-                                    Import finalizat: {importSummary.inserted} adăugate, {importSummary.skipped}{" "}
-                                    sărite.
+                                    Import finalizat: {importSummary.inserted} adăugate,{" "}
+                                    {importSummary.merged} actualizate (același Google în categorie),{" "}
+                                    {importSummary.skipped} sărite.
                                 </p>
                             ) : null}
                         </div>

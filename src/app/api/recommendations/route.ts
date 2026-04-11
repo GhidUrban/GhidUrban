@@ -62,17 +62,6 @@ export async function GET(request: Request) {
         const city_slug = searchParams.get("city_slug")?.trim() || undefined;
         const exclude_place_id = searchParams.get("exclude_place_id")?.trim() || undefined;
 
-        console.log("[recommendations] params", {
-            lat,
-            lng,
-            city_slug: city_slug ?? null,
-            category_slug: category_slug || null,
-            exclude_place_id: exclude_place_id ?? null,
-            radius_km,
-            limit,
-            take,
-        });
-
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
             return errorResponse(
                 "Parametrii lat și lng sunt obligatorii (numere valide).",
@@ -110,11 +99,6 @@ export async function GET(request: Request) {
             return okDist && typeof p.place_id === "string" && p.place_id.length > 0;
         });
 
-        console.log("[recommendations] fetched candidates", {
-            count: withValidCoords.length,
-            sample: withValidCoords[0] ?? null,
-        });
-
         sortByDistanceAsc(withValidCoords);
         const top = withValidCoords.slice(0, take);
 
@@ -132,7 +116,6 @@ export async function GET(request: Request) {
             is_promoted: p.active_promoted === true,
             google_match_status: p.google_match_status ?? null,
             google_photo_uri: p.google_photo_uri ?? null,
-            google_hours_raw: p.google_hours_raw ?? null,
         }));
 
         return NextResponse.json({

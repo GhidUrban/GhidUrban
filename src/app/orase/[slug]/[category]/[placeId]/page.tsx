@@ -4,7 +4,6 @@ import Breadcrumb from "@/components/Breadcrumb";
 import { InfoRow } from "@/components/InfoRow";
 import { MapOptionsButton } from "@/components/MapOptionsButton";
 import { PlaceImage } from "@/components/PlaceImage";
-import { PlaceOpenNowBadge } from "@/components/PlaceOpenNowBadge";
 import { RecordRecentPlaceVisit } from "@/components/RecordRecentPlaceVisit";
 import { SimilarPlacesSection } from "@/components/SimilarPlacesSection";
 import {
@@ -326,14 +325,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
                             className={`px-5 py-3 ${hasAddress || hasPhone ? "border-t border-gray-200/70" : ""}`}
                         >
                             <InfoRow label="Program" icon={<PlaceDetailClockIcon />}>
-                                <div className="space-y-2">
-                                    <div className="empty:hidden">
-                                        <PlaceOpenNowBadge
-                                            googleHoursRaw={place.google_hours_raw}
-                                            size="md"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
+                                <div className="space-y-1">
                                     {compactScheduleRows !== null ? (
                                         compactScheduleRows.map((line, i) => {
                                             const colonIdx = line.indexOf(":");
@@ -381,7 +373,6 @@ export default async function PlacePage({ params }: PlacePageProps) {
                                             );
                                         })
                                     )}
-                                    </div>
                                 </div>
                             </InfoRow>
                         </div>

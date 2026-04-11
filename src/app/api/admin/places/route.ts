@@ -3,9 +3,9 @@ import {
     deletePlaceFromSupabase,
     getAllPlacesForAdminFromSupabase,
     type AdminSupabasePlaceRow,
+    normalizeCanonicalGooglePlaceId,
     placeDuplicateByNormalizedAddressInCategory,
     placeDuplicateBySimilarNameAndAddressInCategory,
-    placeExistsByExternalPlaceId,
     placeIdExistsInCategory,
     updatePlaceFeaturedInSupabase,
     updatePlaceInSupabase,
@@ -195,14 +195,9 @@ export async function POST(req: Request) {
         );
     }
 
-    try {
-        if (external_place_id_trimmed) {
-            if (await placeExistsByExternalPlaceId(external_place_id_trimmed)) {
-                console.log("[place create] duplicate by external_place_id");
-                return duplicateResponse("external_place_id");
-            }
-        }
+    let resolvedPlaceId = place_id;
 
+    try {
         if (await placeIdExistsInCategory(place_id, city_slug, category_slug)) {
             console.log("[place create] duplicate by place_id");
             return duplicateResponse("place_id");
@@ -236,7 +231,10 @@ export async function POST(req: Request) {
 
         const planExpiresCreate = featuredUntilFromBody(plan_expires_at);
 
-        await createPlaceInSupabase({
+        const googlePlaceId = normalizeCanonicalGooglePlaceId(
+            external_place_id_trimmed || null,
+        );
+        const createOutcome = await createPlaceInSupabase({
             place_id,
             city_slug,
             category_slug,
@@ -256,7 +254,10 @@ export async function POST(req: Request) {
             plan_expires_at:
                 planExpiresCreate === undefined ? null : planExpiresCreate,
             external_place_id: external_place_id_trimmed || null,
+            google_place_id: googlePlaceId,
         });
+
+        resolvedPlaceId = createOutcome.place_id;
     } catch (error) {
         console.error("Insert error:", error);
 
@@ -274,12 +275,12 @@ export async function POST(req: Request) {
     revalidatePath("/orase");
     revalidatePath(`/orase/${city_slug}`);
     revalidatePath(`/orase/${city_slug}/${category_slug}`);
-    revalidatePath(`/orase/${city_slug}/${category_slug}/${place_id}`);
+    revalidatePath(`/orase/${city_slug}/${category_slug}/${resolvedPlaceId}`);
 
     return NextResponse.json({
         success: true,
         message: "Place created successfully",
-        data: null
+        data: { place_id: resolvedPlaceId },
     });
 }
 

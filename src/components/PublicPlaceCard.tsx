@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { PlaceImage } from "@/components/PlaceImage";
-import { PlaceOpenNowBadge } from "@/components/PlaceOpenNowBadge";
 import type { Place } from "@/data/places";
 
 function AddressPinIcon({ className }: { className?: string }) {
@@ -29,7 +28,6 @@ export type PublicPlaceCardProps = {
     rating?: number;
     google_match_status?: string | null;
     google_photo_uri?: string | null;
-    google_hours_raw?: unknown | null;
   };
   citySlug: string;
   categorySlug: string;
@@ -120,9 +118,6 @@ export function PublicPlaceCard({
         >
           {titleContent ?? place.name}
         </h3>
-        <div className="empty:hidden mt-1">
-          <PlaceOpenNowBadge googleHoursRaw={place.google_hours_raw} />
-        </div>
         {!isCompact && place.address?.trim() ? (
           <div className="mt-1 flex items-center gap-1">
             <AddressPinIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />

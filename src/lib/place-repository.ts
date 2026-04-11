@@ -8,6 +8,7 @@ import {
 } from "@/data/places";
 import { isActiveFeatured } from "@/lib/is-active-featured";
 import { normalizeListingPlanType, resolveListing } from "@/lib/listing-plan";
+import { GOOGLE_IMPORT_SUPPORTED_CATEGORIES } from "@/lib/google-import-categories";
 import { haversineKm } from "@/lib/haversine-km";
 import { placeIdSlugFromName, slugToTitle } from "@/lib/slug";
 import { supabase } from "@/lib/supabase/client";
@@ -155,9 +156,144 @@ export type SupabasePlaceMutationInput = {
     plan_expires_at?: string | null;
     external_source?: string | null;
     external_place_id?: string | null;
+    /** Google resource id; uniqueness is per (city_slug, category_slug), not globally. */
+    google_place_id?: string | null;
     latitude?: number | null;
     longitude?: number | null;
 };
+
+/** Canonical `places/ChIJ…` form for lookups and composite (city+category) de-dupe. */
+export function normalizeCanonicalGooglePlaceId(
+    raw: string | null | undefined,
+): string | null {
+    const t = raw?.trim();
+    if (!t) {
+        return null;
+    }
+    if (t.startsWith("places/")) {
+        return t;
+    }
+    return `places/${t}`;
+}
+
+/** Best-effort id from a Google Maps URL (classic ChIJ… ids). */
+export function extractGooglePlaceIdFromMapsUrl(
+    raw: string | null | undefined,
+): string | null {
+    if (raw == null) {
+        return null;
+    }
+    const u = String(raw).trim();
+    if (!u) {
+        return null;
+    }
+    try {
+        const parsed = new URL(u);
+        const fromParams =
+            parsed.searchParams.get("query_place_id") ?? parsed.searchParams.get("place_id");
+        if (fromParams?.trim()) {
+            return fromParams.trim();
+        }
+    } catch {
+        // relative or invalid URL — fall through to regex heuristics
+    }
+    const paramMatch = u.match(/[?&](?:query_place_id|place_id)=([^&]+)/i);
+    if (paramMatch?.[1]) {
+        try {
+            const dec = decodeURIComponent(paramMatch[1].replace(/\+/g, " "));
+            if (dec.trim()) {
+                return dec.trim();
+            }
+        } catch {
+            const t = paramMatch[1].trim();
+            if (t) {
+                return t;
+            }
+        }
+    }
+    const fq = u.match(/place[/_]id[=:]\s*([A-Za-z0-9_-]+)/i);
+    if (fq?.[1]?.trim()) {
+        return fq[1].trim();
+    }
+    const resource = u.match(/places\/(ChIJ[A-Za-z0-9_-]{10,})/);
+    if (resource?.[1]) {
+        return `places/${resource[1]}`;
+    }
+    const chij = u.match(/(ChIJ[A-Za-z0-9_-]{10,})/);
+    if (chij?.[1]) {
+        return chij[1];
+    }
+    return null;
+}
+
+export type PlaceKeyRow = {
+    place_id: string;
+    city_slug: string;
+    category_slug: string;
+};
+
+export type GooglePlaceListingScope = {
+    city_slug: string;
+    category_slug: string;
+};
+
+/** Row in the same city+category that already holds this Google / external id (merge target). */
+export async function getPlaceKeyByGoogleOrExternal(
+    raw: string | null | undefined,
+    scope: GooglePlaceListingScope,
+): Promise<PlaceKeyRow | null> {
+    const city = scope.city_slug?.trim();
+    const cat = scope.category_slug?.trim();
+    if (!city || !cat) {
+        return null;
+    }
+    const c = normalizeCanonicalGooglePlaceId(raw ?? undefined);
+    if (!c) {
+        return null;
+    }
+    const variants = [c];
+    if (c.startsWith("places/")) {
+        const tail = c.slice("places/".length).trim();
+        if (tail && !variants.includes(tail)) {
+            variants.push(tail);
+        }
+    }
+    for (const v of variants) {
+        const { data, error } = await supabase
+            .from("places")
+            .select("place_id,city_slug,category_slug")
+            .eq("google_place_id", v)
+            .eq("city_slug", city)
+            .eq("category_slug", cat)
+            .limit(1);
+        if (error) {
+            console.error("Supabase google_place_id lookup error:", error);
+            throw new Error("Failed to check google_place_id");
+        }
+        const row = data?.[0] as PlaceKeyRow | undefined;
+        if (row) {
+            return row;
+        }
+    }
+    for (const v of variants) {
+        const { data, error } = await supabase
+            .from("places")
+            .select("place_id,city_slug,category_slug")
+            .eq("external_place_id", v)
+            .eq("city_slug", city)
+            .eq("category_slug", cat)
+            .limit(1);
+        if (error) {
+            console.error("Supabase external_place_id lookup error:", error);
+            throw new Error("Failed to check external_place_id");
+        }
+        const row = data?.[0] as PlaceKeyRow | undefined;
+        if (row) {
+            return row;
+        }
+    }
+    return null;
+}
 
 const CATEGORY_CARDS: CategoryCard[] = [
     { name: "Restaurante", slug: "restaurante", icon: "" },
@@ -220,6 +356,70 @@ export async function getAllCitiesForAdminFromSupabase(): Promise<AdminCityRow[]
         }
         return a.name.localeCompare(b.name, "ro", { sensitivity: "base" });
     });
+}
+
+export type GoogleImportCoverageRow = {
+    city_slug: string;
+    city_name: string | null;
+    category_slug: string;
+    place_count: number;
+};
+
+/**
+ * Counts places per (city, category) for Google-supported categories only.
+ * Sorted ascending by count (batch import: start with lowest coverage).
+ */
+export async function getGoogleImportCoverageHintsFromSupabase(): Promise<
+    GoogleImportCoverageRow[]
+> {
+    const cities = await getAllCitiesForAdminFromSupabase();
+    const citySlugs = new Set(cities.map((c) => c.slug));
+
+    const { data: placeRows, error } = await supabase
+        .from("places")
+        .select("city_slug, category_slug")
+        .in("category_slug", [...GOOGLE_IMPORT_SUPPORTED_CATEGORIES]);
+
+    if (error) {
+        console.error("getGoogleImportCoverageHintsFromSupabase:", error);
+        throw new Error("Failed to load google import coverage");
+    }
+
+    const counts = new Map<string, number>();
+    for (const raw of placeRows ?? []) {
+        const row = raw as { city_slug: string | null; category_slug: string | null };
+        const cs = row.city_slug?.trim() ?? "";
+        const cat = row.category_slug?.trim() ?? "";
+        if (!cs || !cat || !citySlugs.has(cs)) {
+            continue;
+        }
+        const key = `${cs}\t${cat}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    const out: GoogleImportCoverageRow[] = [];
+    for (const city of cities) {
+        for (const category_slug of GOOGLE_IMPORT_SUPPORTED_CATEGORIES) {
+            const key = `${city.slug}\t${category_slug}`;
+            out.push({
+                city_slug: city.slug,
+                city_name: city.name,
+                category_slug,
+                place_count: counts.get(key) ?? 0,
+            });
+        }
+    }
+
+    out.sort((a, b) => {
+        if (a.place_count !== b.place_count) {
+            return a.place_count - b.place_count;
+        }
+        const sa = `${a.city_slug}/${a.category_slug}`;
+        const sb = `${b.city_slug}/${b.category_slug}`;
+        return sa.localeCompare(sb, "ro", { sensitivity: "base" });
+    });
+
+    return out;
 }
 
 /** Import / autofill: `cities.latitude` / `cities.longitude` only (no hardcoded fallback). */
@@ -570,7 +770,7 @@ export async function getPlacesByCategoryFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
+            "place_id, name, description, address, schedule, image, rating, phone, website, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri",
         )
         .eq("city_slug", citySlug)
         .eq("category_slug", categorySlug)
@@ -600,7 +800,6 @@ export type PlaceSearchIndexRow = {
     plan_expires_at: string | null;
     google_match_status?: string | null;
     google_photo_uri?: string | null;
-    google_hours_raw?: unknown | null;
 };
 
 export async function getPlacesSearchIndexRowsFromSupabase(
@@ -610,7 +809,7 @@ export async function getPlacesSearchIndexRowsFromSupabase(
     const { data, error } = await supabase
         .from("places")
         .select(
-            "place_id, name, latitude, longitude, address, image, rating, featured, featured_until, plan_type, plan_expires_at, google_match_status, google_photo_uri, google_hours_raw",
+            "place_id, name, latitude, longitude, address, image, rating, featured, featured_until, plan_type, plan_expires_at, google_match_status, google_photo_uri",
         )
         .eq("city_slug", citySlug.trim())
         .eq("category_slug", categorySlug.trim())
@@ -665,7 +864,6 @@ export type RecommendedPlaceRow = {
     listing_tier_rank: number;
     google_match_status?: string | null;
     google_photo_uri?: string | null;
-    google_hours_raw?: unknown | null;
 };
 
 type RecommendationOptions = {
@@ -694,7 +892,7 @@ export async function getNearbyRecommendedPlacesFromSupabase(
     let query = supabase
         .from("places")
         .select(
-            "place_id, city_slug, category_slug, name, address, image, rating, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
+            "place_id, city_slug, category_slug, name, address, image, rating, maps_url, featured, featured_until, plan_type, plan_expires_at, latitude, longitude, google_match_status, google_photo_uri",
         )
         .eq("status", "available")
         .not("latitude", "is", null)
@@ -768,7 +966,6 @@ export async function getNearbyRecommendedPlacesFromSupabase(
             listing_tier_rank,
             google_match_status: raw.google_match_status ?? null,
             google_photo_uri: raw.google_photo_uri ?? null,
-            google_hours_raw: raw.google_hours_raw ?? null,
         });
     }
 
@@ -789,6 +986,283 @@ export async function getAllPlacesForAdminFromSupabase(): Promise<AdminSupabaseP
     }
 
     return data ?? [];
+}
+
+/** Another row in the same city+category that already holds this google_place_id. */
+export type GooglePlaceIdListingConflict = {
+    conflicting_place_id: string;
+    conflicting_name: string;
+    conflicting_city_slug: string;
+    conflicting_category_slug: string;
+    conflicting_address: string | null;
+};
+
+export type AdminGoogleMatchReviewRow = {
+    place_id: string;
+    city_slug: string;
+    category_slug: string;
+    name: string;
+    address: string | null;
+    google_match_score: number | null;
+    google_place_id: string | null;
+    google_maps_uri: string | null;
+    google_photo_uri: string | null;
+    /** false = checked, no conflict; true = checked, conflict; null = check failed (unknown) */
+    has_google_conflict: boolean | null;
+    conflict: GooglePlaceIdListingConflict | null;
+    /** true when conflict lookup errored (timeout/network); safe to show list, do not approve matched blindly */
+    conflict_check_failed: boolean;
+};
+
+/**
+ * Same listing scope as sync collision: another place with same stored google_place_id
+ * (any variant) in this city+category, excluding the current place_id.
+ */
+export async function findGooglePlaceIdListingConflict(
+    googlePlaceIdRaw: string | null | undefined,
+    excludePlaceId: string,
+    citySlug: string,
+    categorySlug: string,
+): Promise<GooglePlaceIdListingConflict | null> {
+    const canonical = normalizeCanonicalGooglePlaceId(googlePlaceIdRaw ?? undefined);
+    const city = citySlug?.trim();
+    const cat = categorySlug?.trim();
+    const exclude = excludePlaceId?.trim();
+    if (!canonical || !city || !cat || !exclude) {
+        return null;
+    }
+    const variants = [canonical];
+    if (canonical.startsWith("places/")) {
+        const tail = canonical.slice("places/".length).trim();
+        if (tail && !variants.includes(tail)) {
+            variants.push(tail);
+        }
+    }
+    for (const v of variants) {
+        const { data, error } = await supabase
+            .from("places")
+            .select("place_id,name,city_slug,category_slug,address")
+            .eq("google_place_id", v)
+            .eq("city_slug", city)
+            .eq("category_slug", cat)
+            .neq("place_id", exclude)
+            .limit(1);
+        if (error) {
+            console.error("findGooglePlaceIdListingConflict:", error);
+            throw new Error("Failed to check google_place_id conflict");
+        }
+        const row = data?.[0] as
+            | {
+                  place_id: string;
+                  name: string | null;
+                  city_slug: string;
+                  category_slug: string;
+                  address: string | null;
+              }
+            | undefined;
+        if (row?.place_id) {
+            return {
+                conflicting_place_id: row.place_id,
+                conflicting_name: row.name?.trim() || row.place_id,
+                conflicting_city_slug: row.city_slug,
+                conflicting_category_slug: row.category_slug,
+                conflicting_address: row.address ?? null,
+            };
+        }
+    }
+    return null;
+}
+
+export type GoogleMatchReviewListFilters = {
+    search?: string;
+    city_slug?: string;
+    category_slug?: string;
+};
+
+/** Distinct city / category slugs among places in Google match review (for admin filter dropdowns). */
+export async function getGoogleMatchReviewFilterSlugsFromSupabase(): Promise<{
+    city_slugs: string[];
+    category_slugs: string[];
+}> {
+    const { data, error } = await supabase
+        .from("places")
+        .select("city_slug, category_slug")
+        .eq("google_match_status", "review");
+
+    if (error) {
+        console.error("Supabase google match review filter slugs error:", error);
+        throw new Error("Failed to fetch google match review filter options");
+    }
+
+    const rows = (data ?? []) as { city_slug: string; category_slug: string }[];
+    const citySet = new Set<string>();
+    const catSet = new Set<string>();
+    for (const r of rows) {
+        if (r.city_slug) {
+            citySet.add(r.city_slug);
+        }
+        if (r.category_slug) {
+            catSet.add(r.category_slug);
+        }
+    }
+    return {
+        city_slugs: Array.from(citySet).sort(),
+        category_slugs: Array.from(catSet).sort(),
+    };
+}
+
+export async function getPlacesForGoogleMatchReviewFromSupabase(
+    filters?: GoogleMatchReviewListFilters,
+): Promise<AdminGoogleMatchReviewRow[]> {
+    const city = filters?.city_slug?.trim();
+    const category = filters?.category_slug?.trim();
+    const search = filters?.search?.trim();
+
+    let q = supabase
+        .from("places")
+        .select(
+            "place_id, city_slug, category_slug, name, address, google_match_score, google_place_id, google_maps_uri, google_photo_uri",
+        )
+        .eq("google_match_status", "review");
+
+    if (city) {
+        q = q.eq("city_slug", city);
+    }
+    if (category) {
+        q = q.eq("category_slug", category);
+    }
+    if (search) {
+        q = q.ilike("name", `%${search}%`);
+    }
+
+    const { data, error } = await q
+        .order("city_slug", { ascending: true })
+        .order("category_slug", { ascending: true })
+        .order("name", { ascending: true });
+
+    if (error) {
+        console.error("Supabase google match review list error:", error);
+        throw new Error("Failed to fetch google match review places");
+    }
+
+    const base = (data ?? []) as Omit<
+        AdminGoogleMatchReviewRow,
+        "has_google_conflict" | "conflict" | "conflict_check_failed"
+    >[];
+
+    const enriched = await Promise.all(
+        base.map(async (r) => {
+            const gid = r.google_place_id?.trim();
+            if (gid == null || gid === "") {
+                return {
+                    ...r,
+                    has_google_conflict: false,
+                    conflict: null,
+                    conflict_check_failed: false,
+                };
+            }
+            try {
+                const conflict = await findGooglePlaceIdListingConflict(
+                    r.google_place_id,
+                    r.place_id,
+                    r.city_slug,
+                    r.category_slug,
+                );
+                return {
+                    ...r,
+                    has_google_conflict: conflict != null,
+                    conflict,
+                    conflict_check_failed: false,
+                };
+            } catch (e) {
+                console.error("google match review conflict check failed for row:", r.place_id, e);
+                return {
+                    ...r,
+                    has_google_conflict: null,
+                    conflict: null,
+                    conflict_check_failed: true,
+                };
+            }
+        }),
+    );
+
+    return enriched;
+}
+
+export type GoogleMatchReviewAction = "matched" | "clear_match";
+
+export async function applyGoogleMatchReviewDecision(
+    placeId: string,
+    citySlug: string,
+    categorySlug: string,
+    action: GoogleMatchReviewAction,
+): Promise<void> {
+    const pid = placeId?.trim();
+    const c = citySlug?.trim();
+    const cat = categorySlug?.trim();
+    if (!pid || !c || !cat) {
+        throw new Error("Missing place_id, city_slug, or category_slug");
+    }
+
+    if (action === "matched") {
+        const { data: selfRow, error: selfErr } = await supabase
+            .from("places")
+            .select("google_place_id")
+            .eq("place_id", pid)
+            .eq("city_slug", c)
+            .eq("category_slug", cat)
+            .eq("google_match_status", "review")
+            .maybeSingle();
+        if (selfErr) {
+            console.error("applyGoogleMatchReviewDecision read:", selfErr);
+            throw new Error("Failed to read place for conflict check");
+        }
+        const gid = (selfRow as { google_place_id: string | null } | null)?.google_place_id;
+        const conflict = await findGooglePlaceIdListingConflict(gid, pid, c, cat);
+        if (conflict) {
+            throw new Error(
+                "CONFLICT: același google_place_id este deja pe alt loc în această categorie. Rezolvă înainte de matched.",
+            );
+        }
+
+        const { error } = await supabase
+            .from("places")
+            .update({ google_match_status: "matched" })
+            .eq("place_id", pid)
+            .eq("city_slug", c)
+            .eq("category_slug", cat)
+            .eq("google_match_status", "review");
+
+        if (error) {
+            console.error("applyGoogleMatchReviewDecision matched:", error);
+            throw new Error("Failed to update google match status");
+        }
+        return;
+    }
+
+    if (action === "clear_match") {
+        const { error } = await supabase
+            .from("places")
+            .update({
+                google_place_id: null,
+                google_maps_uri: null,
+                google_photo_uri: null,
+                google_photo_name: null,
+                google_match_score: null,
+                google_hours_raw: null,
+                google_hours_text: null,
+                google_match_status: "review",
+            })
+            .eq("place_id", pid)
+            .eq("city_slug", c)
+            .eq("category_slug", cat)
+            .eq("google_match_status", "review");
+
+        if (error) {
+            console.error("applyGoogleMatchReviewDecision clear_match:", error);
+            throw new Error("Failed to clear google match fields");
+        }
+    }
 }
 
 export async function getAdminPlaceByIdFromSupabase(
@@ -917,25 +1391,6 @@ export async function placeDuplicateBySimilarNameAndAddressInCategory(
     return false;
 }
 
-export async function placeExistsByExternalPlaceId(external_place_id: string): Promise<boolean> {
-    const id = external_place_id?.trim();
-    if (!id) {
-        return false;
-    }
-    const { data, error } = await supabase
-        .from("places")
-        .select("place_id")
-        .eq("external_place_id", id)
-        .limit(1);
-
-    if (error) {
-        console.error("Supabase external_place_id lookup error:", error);
-        throw new Error("Failed to check external place id");
-    }
-
-    return (data?.length ?? 0) > 0;
-}
-
 function escapeIlikePattern(s: string): string {
     return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
@@ -986,7 +1441,36 @@ export async function placeIdExistsInCategory(
     return (data?.length ?? 0) > 0;
 }
 
-export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): Promise<void> {
+export type CreatePlaceOutcome = {
+    result: "inserted" | "merged";
+    /** Slug used in public URLs (existing row on merge). */
+    place_id: string;
+};
+
+export async function createPlaceInSupabase(
+    place: SupabasePlaceMutationInput,
+): Promise<CreatePlaceOutcome> {
+    const googleKey = normalizeCanonicalGooglePlaceId(
+        place.google_place_id ?? place.external_place_id ?? undefined,
+    );
+    if (googleKey) {
+        const existing = await getPlaceKeyByGoogleOrExternal(
+            place.google_place_id ?? place.external_place_id ?? googleKey,
+            {
+                city_slug: place.city_slug,
+                category_slug: place.category_slug,
+            },
+        );
+        if (existing) {
+            await updatePlaceInSupabase({
+                ...place,
+                place_id: existing.place_id,
+                google_place_id: googleKey,
+            });
+            return { result: "merged", place_id: existing.place_id };
+        }
+    }
+
     const {
         status: _omitStatus,
         featured: _omitFeatured,
@@ -1011,6 +1495,7 @@ export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): 
             : place.plan_expires_at;
     const row = {
         ...rest,
+        google_place_id: googleKey ?? place.google_place_id ?? null,
         status: place.status ?? "available",
         featured,
         featured_until,
@@ -1023,6 +1508,7 @@ export async function createPlaceInSupabase(place: SupabasePlaceMutationInput): 
         console.error("Supabase create place error:", error);
         throw new Error("Failed to create place");
     }
+    return { result: "inserted", place_id: place.place_id };
 }
 
 export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): Promise<void> {
@@ -1059,6 +1545,25 @@ export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): 
             place.plan_expires_at === null || place.plan_expires_at === ""
                 ? null
                 : place.plan_expires_at;
+    }
+    if (place.external_place_id !== undefined) {
+        updatePayload.external_place_id =
+            place.external_place_id === null || place.external_place_id === ""
+                ? null
+                : place.external_place_id;
+    }
+    if (place.external_source !== undefined) {
+        updatePayload.external_source = place.external_source;
+    }
+    if (place.latitude !== undefined) {
+        updatePayload.latitude = place.latitude;
+    }
+    if (place.longitude !== undefined) {
+        updatePayload.longitude = place.longitude;
+    }
+    if (place.google_place_id !== undefined) {
+        updatePayload.google_place_id =
+            normalizeCanonicalGooglePlaceId(place.google_place_id) ?? place.google_place_id;
     }
 
     const { error } = await supabase

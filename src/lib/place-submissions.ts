@@ -3,9 +3,13 @@ import { createClient, type PostgrestError, type SupabaseClient } from "@supabas
 import { PLACE_IMAGE_PLACEHOLDER } from "@/lib/place-image";
 import {
     createPlaceInSupabase,
+    extractGooglePlaceIdFromMapsUrl,
+    getPlaceKeyByGoogleOrExternal,
+    normalizeCanonicalGooglePlaceId,
     placeDuplicateByNormalizedAddressInCategory,
     placeDuplicateBySimilarNameAndAddressInCategory,
     placeIdExistsInCategory,
+    updatePlaceInSupabase,
 } from "@/lib/place-repository";
 import { placeIdSlugFromName } from "@/lib/slug";
 
@@ -294,6 +298,45 @@ export async function approvePlaceSubmissionIntoPlaces(
         };
     }
 
+    const mapsGoogleRaw = extractGooglePlaceIdFromMapsUrl(sub.maps_url);
+    const submissionGoogleKey = normalizeCanonicalGooglePlaceId(mapsGoogleRaw);
+    if (submissionGoogleKey) {
+        const existingGoogle = await getPlaceKeyByGoogleOrExternal(submissionGoogleKey, {
+            city_slug,
+            category_slug,
+        });
+        if (existingGoogle) {
+            const image = trimOrNull(sub.image) ?? PLACE_IMAGE_PLACEHOLDER;
+            await updatePlaceInSupabase({
+                place_id: existingGoogle.place_id,
+                city_slug,
+                category_slug,
+                name,
+                description: trimOrNull(descriptionFinal),
+                address: trimOrNull(addressForChecks),
+                schedule: null,
+                image,
+                rating: null,
+                phone,
+                website: trimOrNull(websiteFinal),
+                maps_url: trimOrNull(sub.maps_url),
+                google_place_id: submissionGoogleKey,
+            });
+            const submission = await markPlaceSubmissionApproved(
+                submissionId,
+                adminNote,
+                existingGoogle.place_id,
+            );
+            return {
+                success: true,
+                place_id: existingGoogle.place_id,
+                submission,
+                message:
+                    "Locul există deja în această categorie pentru același id Google; datele au fost actualizate și propunerea marcată aprobată.",
+            };
+        }
+    }
+
     const place_id = placeIdSlugFromName(name);
     if (!place_id) {
         return {
@@ -348,7 +391,7 @@ export async function approvePlaceSubmissionIntoPlaces(
 
     const image = trimOrNull(sub.image) ?? PLACE_IMAGE_PLACEHOLDER;
 
-    await createPlaceInSupabase({
+    const createOutcome = await createPlaceInSupabase({
         place_id,
         city_slug,
         category_slug,
@@ -366,18 +409,31 @@ export async function approvePlaceSubmissionIntoPlaces(
         featured_until: null,
         plan_type: "free",
         plan_expires_at: null,
+        google_place_id: submissionGoogleKey,
     });
 
-    console.log("[submission approve] inserted into places");
+    const approvedPlaceId = createOutcome.place_id;
+    if (createOutcome.result === "merged") {
+        console.log("[submission approve] merged into existing place by google_place_id");
+    } else {
+        console.log("[submission approve] inserted into places");
+    }
 
-    const submission = await markPlaceSubmissionApproved(submissionId, adminNote, place_id);
+    const submission = await markPlaceSubmissionApproved(
+        submissionId,
+        adminNote,
+        approvedPlaceId,
+    );
     console.log("[submission approve] marked approved");
 
     return {
         success: true,
-        place_id,
+        place_id: approvedPlaceId,
         submission,
-        message: "Locul a fost adăugat și propunerea marcată aprobată.",
+        message:
+            createOutcome.result === "merged"
+                ? "Locul există deja (același Google id); datele au fost actualizate și propunerea marcată aprobată."
+                : "Locul a fost adăugat și propunerea marcată aprobată.",
     };
 }
 

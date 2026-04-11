@@ -4,7 +4,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
 import type { GlobalSearchIndex } from "@/lib/load-global-search-index";
-import type { CautaServerTiming } from "./page";
 import {
     readRecentPlaces,
     RECENT_PLACES_STORAGE_KEY,
@@ -36,11 +35,9 @@ import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 export function GlobalSearchClient({
     index,
     initialQuery = "",
-    serverTiming,
 }: {
     index: GlobalSearchIndex;
     initialQuery?: string;
-    serverTiming?: CautaServerTiming;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -60,20 +57,8 @@ export function GlobalSearchClient({
     const [activeCoords, setActiveCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [geoBusy, setGeoBusy] = useState(false);
     const [recentPlaces, setRecentPlaces] = useState<RecentPlaceVisit[]>([]);
-    const mountStartRef = useRef<number>(0);
-    const searchCycleStartRef = useRef<number | null>(null);
-    const lastSearchDurationRef = useRef<number | null>(null);
-    const hasLoggedReadyForQueryRef = useRef<string>("");
 
     useEffect(() => {
-        mountStartRef.current = performance.now();
-        if (process.env.NODE_ENV !== "production") {
-            console.log("[cauta/perf] mount", {
-                initialQuery,
-                indexPlaces: index.places.length,
-                serverTiming,
-            });
-        }
         const el = inputRef.current;
         if (!el) return;
         try {
@@ -81,13 +66,10 @@ export function GlobalSearchClient({
         } catch {
             el.focus();
         }
-        // Place caret at the end after autofocus (safe for empty value too).
         try {
             const end = el.value.length;
             el.setSelectionRange(end, end);
-        } catch {
-            /* some mobile browsers may ignore selection APIs */
-        }
+        } catch {}
     }, []);
 
     useEffect(() => {
@@ -107,7 +89,6 @@ export function GlobalSearchClient({
     }, []);
 
     useEffect(() => {
-        // URL query param is the source of truth for displayed results.
         setInputValue(initialQuery);
         setCommittedQuery(initialQuery);
         if (pendingQuery && pendingQuery.trim() === initialQuery.trim()) {
@@ -131,19 +112,7 @@ export function GlobalSearchClient({
 
     useEffect(() => {
         const run = window.setTimeout(() => {
-            const t0 = performance.now();
             const nextOutcome = searchPlacesGlobal(index.places, committedQuery, activeCoords ?? undefined);
-            const searchMs = performance.now() - t0;
-            lastSearchDurationRef.current = searchMs;
-            if (process.env.NODE_ENV !== "production") {
-                console.log("[cauta/perf] search", {
-                    query: committedQuery,
-                    searchMs: Number(searchMs.toFixed(2)),
-                    resultCount: nextOutcome.places.length,
-                    usedFuzzyFallback: nextOutcome.usedFuzzyFallback,
-                    hasLocation: Boolean(activeCoords),
-                });
-            }
             setOutcome(nextOutcome);
             if (pendingQuery && pendingQuery.trim() === committedQuery.trim()) {
                 setIsSubmittingSearch(false);
@@ -176,10 +145,8 @@ export function GlobalSearchClient({
     function commitQuery(nextRaw: string) {
         const next = nextRaw.trim();
         if (next === committedQuery.trim()) return;
-        searchCycleStartRef.current = performance.now();
         setCommittedQuery(next);
         if (!next.length) {
-            // Empty query should switch to empty mode immediately without search-loading feedback.
             setIsSubmittingSearch(false);
             setPendingQuery(null);
             router.replace(pathname);
@@ -285,42 +252,6 @@ export function GlobalSearchClient({
             window.clearTimeout(timer);
         };
     }, [inputValue, committedQuery, pathname, router]);
-
-    useEffect(() => {
-        if (!hasQuery) {
-            hasLoggedReadyForQueryRef.current = "";
-            searchCycleStartRef.current = null;
-            return;
-        }
-        if (isLoadingFeedback || hasPendingSearch) {
-            return;
-        }
-        const queryKey = committedQuery.trim();
-        if (!queryKey.length || hasLoggedReadyForQueryRef.current === queryKey) {
-            return;
-        }
-        hasLoggedReadyForQueryRef.current = queryKey;
-        const totalFromMountMs = performance.now() - mountStartRef.current;
-        const totalFromSubmitMs =
-            searchCycleStartRef.current != null
-                ? performance.now() - searchCycleStartRef.current
-                : null;
-
-        if (process.env.NODE_ENV !== "production") {
-            console.log("[cauta/perf] results-ready", {
-                query: queryKey,
-                totalFromMountMs: Number(totalFromMountMs.toFixed(2)),
-                totalFromSubmitMs:
-                    totalFromSubmitMs == null ? null : Number(totalFromSubmitMs.toFixed(2)),
-                lastSearchMs:
-                    lastSearchDurationRef.current == null
-                        ? null
-                        : Number(lastSearchDurationRef.current.toFixed(2)),
-                resultCount: places.length,
-            });
-        }
-        searchCycleStartRef.current = null;
-    }, [committedQuery, hasPendingSearch, hasQuery, isLoadingFeedback, places.length]);
 
     useEffect(() => {
         if (!isLoadingFeedback) {
@@ -484,7 +415,6 @@ export function GlobalSearchClient({
                                             address: (p.address ?? "").trim(),
                                             google_match_status: p.google_match_status ?? null,
                                             google_photo_uri: p.google_photo_uri ?? null,
-                                            google_hours_raw: p.google_hours_raw ?? null,
                                             ...(ratingNum != null && ratingNum > 0
                                                 ? { rating: ratingNum }
                                                 : {}),

@@ -34,7 +34,6 @@ export type GlobalSearchPlace = {
     active_promoted?: boolean;
     google_match_status?: string | null;
     google_photo_uri?: string | null;
-    google_hours_raw?: unknown | null;
 };
 
 export type GlobalSearchIndex = {
@@ -96,7 +95,6 @@ async function loadGlobalSearchIndexUncached(): Promise<GlobalSearchIndex> {
                     active_promoted: activePromoted,
                     google_match_status: p.google_match_status ?? null,
                     google_photo_uri: p.google_photo_uri ?? null,
-                    google_hours_raw: p.google_hours_raw ?? null,
                 });
             }
         }

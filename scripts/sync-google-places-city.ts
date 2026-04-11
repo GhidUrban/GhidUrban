@@ -8,6 +8,7 @@ type PlaceRow = {
   name: string;
   address: string | null;
   city_slug: string;
+  category_slug: string;
   latitude: number | null;
   longitude: number | null;
   image: string | null;
@@ -35,6 +36,44 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !GOOGLE_MAPS_API_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+function normalizeGooglePlaceIdForDb(raw: string | null | undefined): string | null {
+  const t = raw?.trim();
+  if (!t) return null;
+  if (t.startsWith("places/")) return t;
+  return `places/${t}`;
+}
+
+async function googlePlaceIdHeldByOtherRowInSameListing(
+  googlePlaceId: string,
+  ownRowId: string,
+  citySlug: string,
+  categorySlug: string,
+): Promise<boolean> {
+  const key = normalizeGooglePlaceIdForDb(googlePlaceId);
+  if (!key) return false;
+  const city = citySlug.trim();
+  const cat = categorySlug.trim();
+  if (!city || !cat) return false;
+  const variants = [key];
+  if (key.startsWith("places/")) {
+    const tail = key.slice("places/".length).trim();
+    if (tail) variants.push(tail);
+  }
+  for (const v of variants) {
+    const { data, error } = await supabase
+      .from("places")
+      .select("id")
+      .eq("google_place_id", v)
+      .eq("city_slug", city)
+      .eq("category_slug", cat)
+      .neq("id", ownRowId)
+      .limit(1);
+    if (error) throw error;
+    if ((data?.length ?? 0) > 0) return true;
+  }
+  return false;
+}
 
 function slugToCityName(citySlug: string): string {
   const map: Record<string, string> = {
@@ -208,7 +247,7 @@ async function resolvePhotoUri(photoName: string): Promise<string | null> {
 async function syncCity(citySlug: string) {
   const { data: places, error } = await supabase
     .from("places")
-    .select("id,name,address,city_slug,latitude,longitude,image")
+    .select("id,name,address,city_slug,category_slug,latitude,longitude,image")
     .eq("city_slug", citySlug)
     .order("name", { ascending: true });
 
@@ -244,11 +283,25 @@ async function syncCity(citySlug: string) {
       const photoUri = photoName ? await resolvePhotoUri(photoName) : null;
 
       // High confidence only -> matched; everything else -> review. Never set rejected here.
-      const status = matchScore >= 75 ? "matched" : "review";
+      // Same city+category only: if another row in this listing already has this google_place_id,
+      // do not attach here — force review (no duplicate slug rows in one category).
+      const wantsMatched = matchScore >= 75;
+      const googleId = best.id ?? null;
+      const idCollision =
+        googleId != null &&
+        (await googlePlaceIdHeldByOtherRowInSameListing(
+          googleId,
+          place.id,
+          place.city_slug,
+          place.category_slug,
+        ));
+      const status = idCollision || !wantsMatched ? "review" : "matched";
+      const assignGoogleId = googleId != null && !idCollision;
+
       await supabase
         .from("places")
         .update({
-          google_place_id: best.id ?? null,
+          ...(assignGoogleId ? { google_place_id: googleId } : {}),
           google_maps_uri: best.googleMapsUri ?? null,
           google_photo_name: photoName,
           google_photo_uri: photoUri,
@@ -257,6 +310,12 @@ async function syncCity(citySlug: string) {
           google_last_synced_at: new Date().toISOString(),
         })
         .eq("id", place.id);
+
+      if (idCollision) {
+        console.warn(
+          `Skipped google_place_id for "${place.name}" (${place.id}): id already on another row`,
+        );
+      }
 
       console.log(
         `Saved ${place.name} -> ${best.displayName?.text ?? "unknown"} | score=${matchScore.toFixed(1)} | status=${status}`,

@@ -1,6 +1,6 @@
 import {
     createPlaceInSupabase,
-    placeExistsByExternalPlaceId,
+    normalizeCanonicalGooglePlaceId,
     placeExistsByNameCityCategory,
     placeIdExistsInCategory,
 } from "@/lib/place-repository";
@@ -77,6 +77,7 @@ export async function POST(req: Request) {
         }
 
         let inserted = 0;
+        let merged = 0;
         let skipped = 0;
         const usedPlaceIds = new Set<string>();
 
@@ -94,12 +95,12 @@ export async function POST(req: Request) {
             }
 
             const external_place_id = strOrEmpty(item.external_place_id);
-            if (external_place_id && (await placeExistsByExternalPlaceId(external_place_id))) {
-                skipped += 1;
-                continue;
-            }
+            // Same Google id in this city+category: createPlaceInSupabase merges into the existing row.
 
-            if (await placeExistsByNameCityCategory(name, city_slug, category_slug)) {
+            if (
+                !external_place_id &&
+                (await placeExistsByNameCityCategory(name, city_slug, category_slug))
+            ) {
                 skipped += 1;
                 continue;
             }
@@ -125,7 +126,10 @@ export async function POST(req: Request) {
             const image = PLACE_IMAGE_PLACEHOLDER;
 
             const ratingVal = numOrNull(item.rating);
-            await createPlaceInSupabase({
+            const googlePlaceId = normalizeCanonicalGooglePlaceId(
+                external_place_id ? external_place_id : null,
+            );
+            const createOutcome = await createPlaceInSupabase({
                 place_id,
                 city_slug,
                 category_slug,
@@ -143,11 +147,16 @@ export async function POST(req: Request) {
                 featured_until: null,
                 external_source: strOrNull(item.external_source),
                 external_place_id: external_place_id ? external_place_id : null,
+                google_place_id: googlePlaceId,
                 latitude: numOrNull(item.latitude),
                 longitude: numOrNull(item.longitude),
             });
 
-            inserted += 1;
+            if (createOutcome.result === "inserted") {
+                inserted += 1;
+            } else {
+                merged += 1;
+            }
         }
 
         revalidatePath("/admin");
@@ -158,7 +167,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
             success: true,
             message: "Import completed",
-            data: { inserted, skipped },
+            data: { inserted, merged, skipped },
         });
     } catch (error) {
         console.error("Import commit error:", error);

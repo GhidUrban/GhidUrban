@@ -198,19 +198,3 @@ export function tryBuildCompactScheduleFromPlainText(
     const built = buildCompactLinesFromWeekdayLines(lines);
     return built;
 }
-
-/** From Google `OpeningHours.openNow` only; no guessing from weekday text. */
-export type PlaceOpenNowFromGoogle = "open" | "closed";
-
-export function getPlaceOpenNowFromGoogleHoursRaw(
-    raw: unknown,
-): PlaceOpenNowFromGoogle | null {
-    if (raw == null || typeof raw !== "object") {
-        return null;
-    }
-    const openNow = (raw as { openNow?: unknown }).openNow;
-    if (typeof openNow !== "boolean") {
-        return null;
-    }
-    return openNow ? "open" : "closed";
-}
