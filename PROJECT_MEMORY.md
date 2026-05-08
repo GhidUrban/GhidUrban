@@ -1,115 +1,110 @@
 # PROJECT MEMORY - GHIDURBAN
 
-Last updated: 2026-03-11
+Last updated: 2026-05-01
 
 ## 1) Project purpose
-- `GhidUrban` is a city guide app.
-- User flow: cities -> categories -> place details.
-- Focus is currently architecture-first, then data/backend evolution.
+- `GhidUrban` is a city guide web app for Romania.
+- User flow: homepage (search + cities) -> city categories -> places list -> place detail.
+- Additional flows: global search (`/cauta`), user place submissions (`/adauga-locatie`).
+- Admin panel at `/admin` for managing cities, categories, places, submissions, and Google imports.
 
 ## 2) Tech stack
-- Next.js App Router (`next` 16)
+- Next.js 16 App Router
+- React 19
 - TypeScript
-- Tailwind CSS
-- No database yet (data is currently local in code)
+- Tailwind CSS 4
+- Supabase (PostgreSQL) — production database
+- `jose` — Edge-compatible JWT verification in middleware
+- `bcrypt` — admin password hashing
+- `jsonwebtoken` — JWT generation for admin auth
 
-## 3) Current route structure
-- `/` -> landing page
-- `/orase` -> cities page
+## 3) Database (Supabase)
+- Tables: `cities`, `categories`, `places`, `place_submissions`
+- Schema lives in `supabase/migrations/` (ALTER-only migrations; base CREATE TABLE was done in Supabase dashboard)
+- Initial schema documented in `supabase/migrations/00000000000000_initial_schema.sql`
+- Supabase client: `src/lib/supabase/client.ts`
+- Data access layer: `src/lib/repositories/` (city, category, place, admin, recommendation)
+
+## 4) Current route structure
+- `/` -> homepage with search bar + popular cities grid
+- `/orase` -> all cities page
 - `/orase/[slug]` -> city categories page
 - `/orase/[slug]/[category]` -> places list page
 - `/orase/[slug]/[category]/[placeId]` -> place details page
-- `/orase/not-found` -> friendly 404 page for invalid routes in this section
+- `/orase/not-found` -> friendly 404 for invalid orase routes
+- `/cauta` -> global search across cities, categories, places
+- `/adauga-locatie` -> user submission form for new places
+- `/admin` -> admin dashboard (login, cities, categories, places, submissions, imports)
 
-## 4) Validation and 404 behavior
-- Dynamic route params are validated against data.
-- In this Next.js 16 project, dynamic route pages must treat `params` as `Promise` and use `await params`.
-- Invalid city slug -> `notFound()`
-- Invalid category for city -> `notFound()`
-- Invalid placeId for city/category -> `notFound()`
+## 5) Auth and security
+- Admin login via `/api/admin/login` — sets `admin_token` httpOnly cookie (JWT, 2h expiry).
+- Next.js middleware (`src/middleware.ts`) protects all `/api/admin/*` routes (except login/logout).
+- JWT verified with `jose` on Edge; `jsonwebtoken` used for token generation in Node routes.
+- Admin credentials from env: `ADMIN_USERNAME`, `ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH`.
 
-## 5) Data and domain model
-- Main data file: `src/data/places.ts`
-- Main type: `Place`
-  - `id`, `name`, `image`, `address`, `rating`, `description`
-  - `schedule`, `phone`, `website`, `mapsUrl`
-- City/category typings and guards:
-  - `CitySlug`, `CategorySlug`
-  - `isCitySlug()`, `isCategorySlug()`
-- Data currently includes all project cities with categories.
-- Real curated entries exist, and repository auto-completes to 20 results per city/category when needed.
-
-## 6) Shared app utilities/components
-- `src/lib/slug.ts`
-  - `slugToTitle()` with Romanian diacritics mapping for known slugs
-- `src/components/Breadcrumb.tsx`
-  - reusable breadcrumb
-- `src/components/PlaceCard.tsx`
-  - place card UI with image + caption under image
-- `src/components/PlaceLists.tsx`
-  - search + filter + 2-column cards on md+
-
-## 7) Repository architecture (important)
-- `src/lib/place-repository.ts` is the data access layer.
-- Pages should use repository functions, not direct file indexing.
-- Repository enforces a minimum of 20 places per city/category:
-  - If real data has less than 20, synthetic placeholders are generated automatically.
-  - This applies to both page rendering and API responses.
-- Current repository functions:
-  - `isValidCitySlug(slug)`
-  - `isValidCategorySlug(city, category)`
-  - `getCategoryCardsForCity(city)`
-  - `getAllCitySlugs()`
-  - `getPlacesByCategory(city, category)`
-  - `getPlaceById(city, category, placeId)`
-
-## 8) API layer (implemented)
-- Response format standard:
-  - `{ success, message, data }`
-- Helper: `src/lib/api-response.ts`
+## 6) API layer
+- Response format: `{ success, message, data }` via `src/lib/api-response.ts`
 - Internal server fetch helper: `src/lib/internal-api.ts`
-- `apiGet(...)` now handles fetch failures, JSON parse failures, and invalid response shapes with a consistent fallback:
-  - `{ success: false, status, message, data: null }`
-- UI/API naming boundary convention in route pages:
-  - UI and route params use `slug`, `category`, `placeId`
-  - API query params and API response types use `city_slug`, `category_slug`, `place_id`
-  - Mapping is done explicitly at the `apiGet(...)` call sites
-- Endpoints:
-  - `GET /api/cities`
-  - `GET /api/categories?city_slug=...`
-  - `GET /api/places?city_slug=...&category_slug=...`
-    - validates missing/invalid `city_slug` and `category_slug`
-    - supports optional `search` over `name`, `description`, `address`
-    - supports optional `sort`: `rating_desc`, `rating_asc`, `name_asc`, `name_desc`
-  - `GET /api/place?city_slug=...&category_slug=...&place_id=...`
-- Pages now consume API endpoints server-side (not repository directly).
-- API smoke checks already validated:
-  - `/api/cities`
-  - `/api/categories?city_slug=baia-mare`
-  - `/api/places?city_slug=baia-mare&category_slug=cafenele`
-  - `/api/place?city_slug=baia-mare&category_slug=cafenele&place_id=narcoffee`
+- Naming convention: UI uses `slug`/`category`/`placeId`, API uses `city_slug`/`category_slug`/`place_id`
 
-## 9) UI state
-- City page: clean cards grid (larger/taller cards)
-- Category page: search + list cards via `PlacesList`
-- Place detail page: larger white information card, consistent with app style
-- Radial layout was removed from city/category pages
+### Public endpoints
+- `GET /api/cities`
+- `GET /api/categories?city_slug=...`
+- `GET /api/places?city_slug=...&category_slug=...` (optional: `search`, `sort`)
+- `GET /api/place?city_slug=...&category_slug=...&place_id=...`
+- `GET /api/recommendations?city_slug=...&category_slug=...` (nearby/similar)
+- `POST /api/submissions` (user-submitted places)
 
-## 10) User preferences to keep
+### Admin endpoints (middleware-protected)
+- `POST /api/admin/login`, `POST /api/admin/logout`
+- `GET/POST/PUT/DELETE /api/admin/places`
+- `GET/PATCH /api/admin/cities`, `GET/PATCH /api/admin/categories`
+- `GET/PATCH /api/admin/submissions`
+- `POST /api/admin/upload-place-image`
+- `POST /api/admin/import/search`, `POST /api/admin/import/commit`
+- `POST /api/admin/import/google/search`, `GET /api/admin/import/google-coverage`
+- `GET/PATCH /api/admin/places/google-match-review`
+- `POST /api/admin/places/autofill-from-maps`
+
+## 7) Validation and 404 behavior
+- Dynamic route params validated against DB data.
+- Next.js 16: `params` is `Promise`, use `await params`.
+- Invalid city/category/place -> `notFound()`.
+- API input validated with `zod` schemas in `src/lib/schemas/`.
+
+## 8) Data model (Place type)
+- `id`, `name`, `image`, `address`, `rating`, `description`
+- `schedule`, `phone`, `website`, `mapsUrl`
+- `featured`, `featured_until`, `activeFeatured`, `activePromoted`, `listingTierRank`
+- `latitude`, `longitude`
+- `google_match_status`, `google_photo_uri`, `google_hours_raw`
+- Listing plans: `free`, `promoted`, `featured` (with expiry)
+
+## 9) Key components
+- `AppHeader` — sticky header with brand, search icon, "Adaugă locație" CTA
+- `HomeSearchBar` — prominent search on homepage
+- `Breadcrumb` — reusable breadcrumb trail
+- `PlaceCard` / `PublicPlaceCard` — place cards with image
+- `CategoryPlacesSection` — search + filter + grid for category pages
+- `OraseCitySearchGrid` / `OraseCategorySearchGrid` — filterable grids
+- `SimilarPlacesSection` / `NearbyRecommendationsSection` — related content
+- `GlobalSearchClient` — client-side fuzzy search UI at `/cauta`
+
+## 10) Scripts
+- `npm run sync:google:city` — sync places from Google for a city
+- `npm run sync:google:hours` — sync opening hours from Google
+- `npm run backfill:coords` — backfill place coordinates
+
+## 11) User preferences to keep
 - Keep communication concise
 - Step-by-step when requested
 - Mention task switch before coding
 - Keep backend/API style with proper status codes and JSON shape
-- Focus on architecture first
+- Use snake_case for DB fields
+- Use class-based Model.init style where applicable
 
 ## 12) Repo hygiene
-- `.gitignore` exists and now also excludes local IDE/AI artifacts:
-  - `.cursor/`
-  - `.vscode/`
-
-## 11) Next recommended architecture steps
-- Add API contract tests (success + 400 + 404 cases for each endpoint)
-- Introduce a DB (later) behind repository/API with same contracts
-- Add tests for repository + API route handlers
-- Decide strategy for replacing auto-generated placeholder entries with fully curated real data over time
-
+- `.gitignore` excludes `.cursor/`, `.vscode/`, `.next/`, `node_modules/`
+- `.env.example` lists all required env vars (no secrets)
+- No tests yet (recommended next step)
+- No CI/CD yet

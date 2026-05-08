@@ -3,7 +3,7 @@ import { cache } from "react";
 import Breadcrumb from "@/components/Breadcrumb";
 import { InfoRow } from "@/components/InfoRow";
 import { MapOptionsButton } from "@/components/MapOptionsButton";
-import { PlaceImage } from "@/components/PlaceImage";
+import { PlaceImageCarousel } from "@/components/PlaceImageCarousel";
 import { RecordRecentPlaceVisit } from "@/components/RecordRecentPlaceVisit";
 import { SimilarPlacesSection } from "@/components/SimilarPlacesSection";
 import {
@@ -273,7 +273,7 @@ export default async function PlacePage({ params }: PlacePageProps) {
                 <div className="min-w-0 mt-3 pt-3">
                 <article className="rounded-2xl border border-black/10 bg-white p-6 shadow-sm shadow-black/[0.04] ring-1 ring-black/[0.03] md:p-8">
                     <div className="relative overflow-hidden rounded-2xl">
-                        <PlaceImage
+                        <PlaceImageCarousel
                             place={place}
                             citySlug={slug}
                             categorySlug={category}

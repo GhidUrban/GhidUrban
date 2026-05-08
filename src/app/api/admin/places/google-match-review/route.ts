@@ -28,6 +28,7 @@ export async function GET(request: Request) {
         const searchRaw = searchParams.get("search");
         const cityRaw = searchParams.get("city_slug");
         const categoryRaw = searchParams.get("category_slug");
+        const missingStorageRaw = searchParams.get("missing_storage");
 
         const filters: GoogleMatchReviewListFilters = {};
         if (typeof searchRaw === "string" && searchRaw.trim()) {
@@ -38,6 +39,9 @@ export async function GET(request: Request) {
         }
         if (typeof categoryRaw === "string" && categoryRaw.trim()) {
             filters.category_slug = categoryRaw.trim();
+        }
+        if (missingStorageRaw === "1" || missingStorageRaw === "true") {
+            filters.missing_storage_image = true;
         }
 
         const hasFilters = Object.keys(filters).length > 0;

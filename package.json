@@ -9,7 +9,10 @@
     "lint": "eslint",
     "backfill:coords": "npx tsx scripts/backfill-place-coordinates.ts",
     "sync:google:city": "npx tsx scripts/sync-google-places-city.ts",
-    "sync:google:hours": "npx tsx scripts/sync-google-hours-city.ts"
+    "sync:google:hours": "npx tsx scripts/sync-google-hours-city.ts",
+    "seed:ro-cities": "npx tsx scripts/seed-ro-major-cities.ts",
+    "import:google:bulk": "npx tsx scripts/bulk-google-import.ts",
+    "photos:google-to-storage": "npx tsx scripts/google-photos-to-supabase-storage.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",

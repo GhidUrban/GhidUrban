@@ -43,3 +43,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local import checkpoints / stats
+/scripts/.checkpoints/
+/scripts/.google-photo-import-stats.json

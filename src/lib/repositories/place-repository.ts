@@ -9,6 +9,7 @@ import type {
     PlaceGoogleDataRow,
     PlaceKeyRow,
     PlaceListingRow,
+    PlacePhotoRow,
     PlaceSearchIndexRow,
     PlaceVisibilityStatus,
     PopularPlaceRow,
@@ -178,6 +179,13 @@ export function supabasePlaceToPlace(p: SupabasePlace): Place {
         google_match_status: gd?.google_match_status ?? null,
         google_photo_uri: gd?.google_photo_uri ?? null,
         google_hours_raw: gd?.google_hours_raw ?? null,
+        image_gallery: (() => {
+            const shots = (p.place_photos ?? [])
+                .filter((row) => row.storage_path?.trim())
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map((row) => row.storage_path.trim());
+            return shots.length > 1 ? shots : undefined;
+        })(),
     };
 }
 
@@ -288,10 +296,21 @@ export async function getPlaceByIdFromSupabase(
     const [gdMap, liMap] = await Promise.all([
         fetchPlaceGoogleDataMap([key]), fetchPlaceListingsMap([key]),
     ]);
+    const { data: photoRows, error: photoErr } = await supabase
+        .from("place_photos")
+        .select("place_id, city_slug, category_slug, sort_order, storage_path")
+        .eq("place_id", row.place_id)
+        .eq("city_slug", row.city_slug)
+        .eq("category_slug", row.category_slug)
+        .order("sort_order", { ascending: true });
+    if (photoErr) {
+        console.warn("place_photos:", photoErr.message);
+    }
     return {
         ...row,
         place_google_data: gdMap.get(placeJoinKey(key)) ?? null,
         place_listings: liMap.get(placeJoinKey(key)) ?? null,
+        place_photos: (photoRows ?? []) as PlacePhotoRow[],
     } as unknown as SupabasePlace;
 }
 

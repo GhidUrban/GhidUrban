@@ -793,8 +793,20 @@ export async function runGoogleImportPreview(options: {
     existing: ExistingPlaceRow[];
     /** Imported external IDs in DB (exact skip). */
     importedIds: Set<string>;
+    /** Batch scripts: fetch details for more rows (default GOOGLE_IMPORT_PREVIEW_TOP_N). */
+    previewTopN?: number;
+    /** More search results before scoring (default scales with previewTopN). */
+    rawCandidateTarget?: number;
 }): Promise<{ rows: GoogleImportPreviewRow[]; meta: GoogleImportPreviewMeta }> {
     const { apiKey, city_slug, category_slug, cityCenter, existing, importedIds } = options;
+    const previewTopN = Math.max(
+        1,
+        Math.min(200, options.previewTopN ?? GOOGLE_IMPORT_PREVIEW_TOP_N),
+    );
+    const rawCandidateTarget = Math.max(
+        previewTopN,
+        options.rawCandidateTarget ?? Math.max(100, previewTopN * 2),
+    );
     const cfg = GOOGLE_IMPORT_CATEGORY_MAP[category_slug];
     const readable = citySlugToReadableCity(city_slug);
 
@@ -816,7 +828,7 @@ export async function runGoogleImportPreview(options: {
             cityCenter,
             naturaTypes,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
         const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
         console.log("[Google import] searchText q=", textQuery.slice(0, 120));
@@ -825,7 +837,7 @@ export async function runGoogleImportPreview(options: {
             textQuery,
             cityCenter,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
         rawList = [...nearbyPart, ...textPart];
     } else if (category_slug === "cazare" && cfg.nearbyTypes?.length && cfg.textKeywords?.length) {
@@ -844,7 +856,7 @@ export async function runGoogleImportPreview(options: {
             cityCenter,
             cazareTypes,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
         const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
         console.log("[Google import] searchText q=", textQuery.slice(0, 120));
@@ -853,7 +865,7 @@ export async function runGoogleImportPreview(options: {
             textQuery,
             cityCenter,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
         rawList = [...nearbyPart, ...textPart];
     } else if (cfg.strategy === "nearby" && cfg.nearbyTypes?.length) {
@@ -870,7 +882,7 @@ export async function runGoogleImportPreview(options: {
             cityCenter,
             cfg.nearbyTypes,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
     } else if (cfg.strategy === "text" && cfg.textKeywords?.length) {
         const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
@@ -880,7 +892,7 @@ export async function runGoogleImportPreview(options: {
             textQuery,
             cityCenter,
             cfg.radiusM,
-            GOOGLE_IMPORT_RAW_CANDIDATE_TARGET,
+            rawCandidateTarget,
         );
     }
 
@@ -989,10 +1001,10 @@ export async function runGoogleImportPreview(options: {
     });
 
     const after_scoring_sort = scored.length;
-    const top = scored.slice(0, GOOGLE_IMPORT_PREVIEW_TOP_N);
+    const top = scored.slice(0, previewTopN);
     console.log(
         "[Google import] top",
-        GOOGLE_IMPORT_PREVIEW_TOP_N,
+        previewTopN,
         "selected from",
         after_scoring_sort,
     );

@@ -53,6 +53,7 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
     const city = filters?.city_slug?.trim();
     const category = filters?.category_slug?.trim();
     const search = filters?.search?.trim();
+    const missingStorageOnly = filters?.missing_storage_image === true;
 
     let q = supabase
         .from("place_google_data")
@@ -72,15 +73,19 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
     if (rows.length === 0) return [];
 
     const placeIds = rows.map((r: Record<string, unknown>) => r.place_id as string);
-    let pq = supabase.from("places").select("place_id, city_slug, category_slug, name, address").in("place_id", placeIds);
+    let pq = supabase.from("places").select("place_id, city_slug, category_slug, name, address, image_storage_path").in("place_id", placeIds);
     if (search) pq = pq.ilike("name", `%${search}%`);
     const { data: placeRows, error: pError } = await pq;
     if (pError) throw new Error("Failed to fetch place names for review");
 
-    const placeMap = new Map<string, { name: string; address: string | null }>();
+    const placeMap = new Map<string, { name: string; address: string | null; image_storage_path: string | null }>();
     for (const pr of placeRows ?? []) {
-        const p = pr as { place_id: string; city_slug: string; category_slug: string; name: string; address: string | null };
-        placeMap.set(`${p.place_id}|${p.city_slug}|${p.category_slug}`, { name: p.name, address: p.address });
+        const p = pr as { place_id: string; city_slug: string; category_slug: string; name: string; address: string | null; image_storage_path: string | null };
+        placeMap.set(`${p.place_id}|${p.city_slug}|${p.category_slug}`, {
+            name: p.name,
+            address: p.address,
+            image_storage_path: p.image_storage_path ?? null,
+        });
     }
 
     const base: Omit<AdminGoogleMatchReviewRow, "has_google_conflict" | "conflict" | "conflict_check_failed">[] = [];
@@ -89,6 +94,10 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
         const key = `${raw.place_id}|${raw.city_slug}|${raw.category_slug}`;
         const pl = placeMap.get(key);
         if (!pl) continue;
+        const image_storage_path = pl.image_storage_path;
+        if (missingStorageOnly && image_storage_path?.trim()) {
+            continue;
+        }
         base.push({
             place_id: raw.place_id as string,
             city_slug: raw.city_slug as string,
@@ -99,10 +108,14 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
             google_place_id: raw.google_place_id as string | null,
             google_maps_uri: raw.google_maps_uri as string | null,
             google_photo_uri: raw.google_photo_uri as string | null,
+            image_storage_path,
         });
     }
 
     base.sort((a, b) => {
+        const sa = a.google_match_score ?? -1;
+        const sb = b.google_match_score ?? -1;
+        if (sb !== sa) return sb - sa;
         const c = a.city_slug.localeCompare(b.city_slug);
         if (c !== 0) return c;
         const ca = a.category_slug.localeCompare(b.category_slug);

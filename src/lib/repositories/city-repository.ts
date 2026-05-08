@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { placeIdSlugFromName } from "@/lib/slug";
+import { SEED_STANDARD_CATEGORIES } from "@/lib/ro-major-cities";
 import {
     adminListSortRank,
     isSafeCitySlug,
@@ -156,30 +157,20 @@ export async function updateCityInSupabase(
     return { slug: newSlug };
 }
 
-const STANDARD_CATEGORY_DEFS: { category_slug: string; category_name: string }[] = [
-    { category_slug: "cafenele", category_name: "Cafenele" },
-    { category_slug: "restaurante", category_name: "Restaurante" },
-    { category_slug: "natura", category_name: "Natura" },
-    { category_slug: "cultural", category_name: "Cultural" },
-    { category_slug: "institutii", category_name: "Institutii" },
-    { category_slug: "cazare", category_name: "Cazare" },
-    { category_slug: "evenimente", category_name: "Evenimente" },
-];
-
 async function insertMissingStandardCategories(db: SupabaseClient, city_slug: string): Promise<number> {
     const { data: existingCats, error: catLookupErr } = await db
         .from("categories").select("category_slug").eq("city_slug", city_slug);
     if (catLookupErr) throw new Error("Nu s-au putut citi categoriile.");
 
     const have = new Set((existingCats ?? []).map((r: { category_slug: string }) => r.category_slug));
-    const toInsert = STANDARD_CATEGORY_DEFS
+    const toInsert = SEED_STANDARD_CATEGORIES
         .filter((d) => !have.has(d.category_slug))
         .map((d) => ({
             city_slug,
             category_slug: d.category_slug,
             category_name: d.category_name,
             is_active: true,
-            sort_order: STANDARD_CATEGORY_DEFS.findIndex((x) => x.category_slug === d.category_slug) + 1,
+            sort_order: SEED_STANDARD_CATEGORIES.findIndex((x) => x.category_slug === d.category_slug) + 1,
         }));
 
     if (toInsert.length === 0) return 0;

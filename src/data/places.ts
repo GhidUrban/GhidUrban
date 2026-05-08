@@ -20,4 +20,6 @@ export type Place = {
     google_match_status?: string | null;
     google_photo_uri?: string | null;
     google_hours_raw?: unknown | null;
+    /** Gallery URLs (Storage), ordered. */
+    image_gallery?: string[];
 };

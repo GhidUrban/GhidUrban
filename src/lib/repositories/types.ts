@@ -77,6 +77,15 @@ export type PlaceListingRow = {
     updated_at: string | null;
 };
 
+/** Supabase Storage public URL (or any absolute URL) for gallery thumbs. */
+export type PlacePhotoRow = {
+    place_id: string;
+    city_slug: string;
+    category_slug: string;
+    sort_order: number;
+    storage_path: string;
+};
+
 export type SupabasePlace = {
     place_id: string;
     name: string;
@@ -94,6 +103,7 @@ export type SupabasePlace = {
     status?: string;
     place_google_data?: PlaceGoogleDataRow | null;
     place_listings?: PlaceListingRow | null;
+    place_photos?: PlacePhotoRow[];
     featured?: boolean | null;
     featured_until?: string | null;
     plan_type?: string;
@@ -236,6 +246,8 @@ export type AdminGoogleMatchReviewRow = {
     google_place_id: string | null;
     google_maps_uri: string | null;
     google_photo_uri: string | null;
+    /** Public Storage URL on places row (cover). */
+    image_storage_path: string | null;
     has_google_conflict: boolean | null;
     conflict: GooglePlaceIdListingConflict | null;
     conflict_check_failed: boolean;
@@ -245,6 +257,8 @@ export type GoogleMatchReviewListFilters = {
     search?: string;
     city_slug?: string;
     category_slug?: string;
+    /** Only rows where places.image_storage_path is empty (Supabase cover not set). */
+    missing_storage_image?: boolean;
 };
 
 export type GoogleMatchReviewAction = "matched" | "clear_match";
