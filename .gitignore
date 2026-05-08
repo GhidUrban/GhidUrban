@@ -47,3 +47,7 @@ next-env.d.ts
 # local import checkpoints / stats
 /scripts/.checkpoints/
 /scripts/.google-photo-import-stats.json
+
+# personal / local notes (not for remote)
+WORKFLOW.md
+PROJECT_MEMORY.md
