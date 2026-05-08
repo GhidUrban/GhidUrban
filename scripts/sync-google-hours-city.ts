@@ -3,9 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 
 dotenv.config({ path: ".env.local" });
 
-type PlaceRow = {
-  id: string;
-  name: string;
+type PlaceGoogleRow = {
+  place_id: string;
+  city_slug: string;
+  category_slug: string;
   google_place_id: string;
 };
 
@@ -103,53 +104,63 @@ function parseLimit(argv: string[]): number | null {
 
 async function syncHoursForCity(citySlug: string, limit: number | null) {
   let query = supabase
-    .from("places")
-    .select("id,name,google_place_id")
+    .from("place_google_data")
+    .select("place_id,city_slug,category_slug,google_place_id")
     .eq("city_slug", citySlug)
     .eq("google_match_status", "matched")
     .not("google_place_id", "is", null)
     .neq("google_place_id", "")
     .is("google_hours_raw", null)
-    .order("name", { ascending: true });
+    .order("place_id", { ascending: true });
 
   if (limit != null) {
     query = query.limit(limit);
   }
 
-  const { data: places, error } = await query;
+  const { data: googleRows, error } = await query;
 
   if (error) throw error;
-  if (!places?.length) {
+  if (!googleRows?.length) {
     console.log(
       `No places to process for ${citySlug} (matched + google_place_id set + google_hours_raw null).`,
     );
     return;
   }
 
+  const placeIds = googleRows.map((r: Record<string, unknown>) => r.place_id as string);
+  const { data: placeNames } = await supabase
+    .from("places").select("place_id,name").in("place_id", placeIds);
+  const nameMap = new Map<string, string>();
+  for (const p of placeNames ?? []) {
+    nameMap.set((p as { place_id: string }).place_id, (p as { name: string }).name);
+  }
+
   console.log(
-    `Found ${places.length} place(s) for ${citySlug} (matched, has place id, no hours yet).`,
+    `Found ${googleRows.length} place(s) for ${citySlug} (matched, has place id, no hours yet).`,
   );
 
   let ok = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const place of places as PlaceRow[]) {
-    const gid = place.google_place_id?.trim() ?? "";
+  for (const row of googleRows) {
+    const r = row as { place_id: string; city_slug: string; category_slug: string; google_place_id: string };
+    const placeName = nameMap.get(r.place_id) ?? r.place_id;
+    const gid = r.google_place_id?.trim() ?? "";
     if (!gid) {
-      console.log(`Skip ${place.name}: empty google_place_id`);
+      console.log(`Skip ${placeName}: empty google_place_id`);
       skipped++;
       continue;
     }
 
     try {
-      console.log(`Fetching hours: ${place.name} (${gid})`);
+      console.log(`Fetching hours: ${placeName} (${gid})`);
 
       const details = await fetchPlaceDetails(gid);
 
       const rawBlock = pickHoursRaw(details);
       if (!rawBlock) {
-        console.log(`No opening hours from Google for ${place.name} — skip`);
+        console.log(`No opening hours from Google for ${placeName} — skip`);
         skipped++;
         await sleep(REQUEST_DELAY_MS);
         continue;
@@ -162,22 +173,24 @@ async function syncHoursForCity(citySlug: string, limit: number | null) {
         ) ?? "Program disponibil";
 
       const { error: upErr } = await supabase
-        .from("places")
+        .from("place_google_data")
         .update({
           google_hours_raw: rawBlock as unknown as Record<string, unknown>,
           google_hours_text: text,
+          synced_at: new Date().toISOString(),
         })
-        .eq("id", place.id)
-        .is("google_hours_raw", null);
+        .eq("place_id", r.place_id)
+        .eq("city_slug", r.city_slug)
+        .eq("category_slug", r.category_slug);
 
       if (upErr) {
         throw upErr;
       }
 
-      console.log(`Saved hours for ${place.name} | text="${text.slice(0, 80)}${text.length > 80 ? "…" : ""}"`);
+      console.log(`Saved hours for ${placeName} | text="${text.slice(0, 80)}${text.length > 80 ? "…" : ""}"`);
       ok++;
     } catch (err) {
-      console.error(`Failed for ${place.name}:`, err);
+      console.error(`Failed for ${placeName}:`, err);
       failed++;
     }
 

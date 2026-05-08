@@ -77,16 +77,12 @@ export async function GET(request: Request) {
             );
         }
 
-        if (!category_slug) {
-            return errorResponse("category_slug este obligatoriu.", 400, "missing_category_slug");
-        }
-
         let places: RecommendedPlaceRow[];
         try {
             places = await getNearbyRecommendedPlacesFromSupabase(lat, lng, {
                 radius_km,
                 city_slug,
-                category_slug,
+                category_slug: category_slug || undefined,
                 exclude_place_id,
             });
         } catch (dbError) {

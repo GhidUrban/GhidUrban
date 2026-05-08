@@ -1,41 +1,86 @@
 import Image from "next/image";
 import Link from "next/link";
+import { getPublicCitiesFromSupabase } from "@/lib/place-repository";
+import { HomeSearchBar } from "@/components/HomeSearchBar";
+import { HomePopularCarousel } from "@/components/HomePopularCarousel";
 
-export default function HomePage() {
+export default async function HomePage() {
+  let cities: { slug: string; name: string; image: string | null }[] = [];
+  try {
+    cities = await getPublicCitiesFromSupabase();
+  } catch (e) {
+    console.error("[HomePage] Failed to load cities:", e);
+    cities = [];
+  }
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-100 px-6">
-      <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
-        <div className="flex w-full max-w-xl flex-col items-center gap-8 rounded-[1.75rem] border border-gray-200 bg-gradient-to-b from-white to-gray-50 p-5 shadow-sm ring-1 ring-white/60 sm:max-w-2xl sm:p-6 md:p-8">
+    <main className="flex min-h-screen flex-col bg-[#f2f2f7]">
+      <section className="flex flex-col items-center gap-5 bg-gradient-to-b from-white to-[#f2f2f7] px-6 pt-8 pb-6 sm:pt-12 sm:pb-8">
+        <Link
+          href="/orase"
+          className="flex w-full max-w-sm flex-col items-center gap-3 rounded-3xl bg-white/70 px-8 py-6 shadow-md backdrop-blur-sm transition-all duration-200 active:scale-[0.98] sm:max-w-md sm:px-12 sm:py-8 md:hover:shadow-lg"
+        >
           <Image
-            src="/images/ghidurban-logo-main.png"
+            src="/logo-full.png"
             alt="GhidUrban"
             width={700}
             height={240}
             priority
-            className="mx-auto h-auto w-full max-w-[300px] sm:max-w-[420px] md:max-w-[560px]"
+            className="h-auto w-[200px] sm:w-[260px] md:w-[300px]"
           />
+          <p className="text-[13px] text-gray-500 sm:text-sm">
+            Descoperă locuri din orașul tău
+          </p>
+        </Link>
 
-          <Link
-            href="/orase"
-            className="group inline-flex items-center justify-center gap-2 rounded-xl border border-black/10 bg-white/70 px-5 py-2.5 text-sm font-semibold text-neutral-800 shadow-sm shadow-black/[0.04] backdrop-blur-sm outline-none ring-1 ring-black/[0.04] transition-all duration-200 ease-out hover:-translate-y-px hover:border-black/20 hover:bg-white/85 hover:shadow-md hover:ring-black/[0.06] focus-visible:ring-2 focus-visible:ring-gray-400/45 focus-visible:ring-offset-2 focus-visible:ring-offset-white active:scale-[0.99] active:border-black/20 active:bg-white/90 active:shadow-md active:translate-y-px"
-          >
-            <svg
-              className="h-3.5 w-3.5 shrink-0 text-neutral-600 opacity-80 transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-active:translate-x-0.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
+        <HomeSearchBar />
+      </section>
+
+      <HomePopularCarousel />
+
+      {cities.length > 0 && (
+        <section className="mx-auto w-full max-w-5xl pb-12">
+          <div className="mb-3 flex items-center justify-between px-4">
+            <h2 className="text-[15px] font-semibold text-gray-800 sm:text-base">Orașe</h2>
+            <Link
+              href="/orase"
+              className="text-[13px] font-medium text-[#008fa8] active:opacity-70 sm:text-sm"
             >
-              <circle cx="12" cy="12" r="10" />
-              <path d="m16.24 7.76-6.36 2.12-2.12 6.36 6.36-2.12 2.12-6.36z" />
-            </svg>
-            Explorează
-          </Link>
-        </div>
-      </div>
+              Vezi toate
+            </Link>
+          </div>
+
+          <div className="no-scrollbar flex gap-3 overflow-x-auto scroll-smooth px-4 snap-x snap-mandatory">
+            {cities.map((city) => (
+              <Link
+                key={city.slug}
+                href={`/orase/${city.slug}`}
+                className="group w-44 shrink-0 snap-start sm:w-52"
+              >
+                <div className="relative h-36 overflow-hidden rounded-2xl shadow-sm ring-1 ring-black/[0.04] transition-all duration-200 active:scale-[0.98] sm:h-40 md:hover:shadow-md md:hover:-translate-y-0.5">
+                  {city.image ? (
+                    <Image
+                      src={city.image}
+                      alt={city.name}
+                      width={400}
+                      height={260}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-[#2EC4B6] to-[#008fa8]" />
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <span className="text-[13px] font-semibold text-white drop-shadow-sm sm:text-sm">
+                      {city.name}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

@@ -4,6 +4,7 @@ export const PLACE_IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";
 
 export type ResolvePlaceImageInput = {
   image?: string | null;
+  image_storage_path?: string | null;
   google_match_status?: string | null;
   google_photo_uri?: string | null;
   /** Used only for category placeholder when there is no real image. */
@@ -28,11 +29,17 @@ function getCategoryPlaceholder(categorySlug: string): string {
 }
 
 /**
- * 1) matched + google_photo_uri → Google URI
- * 2) else non-empty image (not global placeholder sentinel) → image
- * 3) else category / generic placeholder
+ * Priority:
+ * 1) image_storage_path (Supabase Storage — our own copy)
+ * 2) matched + google_photo_uri (Google CDN)
+ * 3) non-empty image field (legacy/manual)
+ * 4) category / generic placeholder
  */
 export function resolvePlaceImageSrc(place: ResolvePlaceImageInput): string {
+  const storagePath = place.image_storage_path?.trim();
+  if (storagePath) {
+    return storagePath;
+  }
   const googleUri = place.google_photo_uri?.trim();
   if (place.google_match_status === "matched" && googleUri) {
     return googleUri;

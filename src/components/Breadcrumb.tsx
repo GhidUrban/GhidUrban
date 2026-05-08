@@ -7,7 +7,6 @@ type BreadcrumbItem = {
 
 type BreadcrumbProps = {
   items: BreadcrumbItem[];
-  /** Smaller, lower-contrast trail (e.g. city flow header). */
   muted?: boolean;
 };
 

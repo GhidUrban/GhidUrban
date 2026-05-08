@@ -62,12 +62,12 @@ async function googlePlaceIdHeldByOtherRowInSameListing(
   }
   for (const v of variants) {
     const { data, error } = await supabase
-      .from("places")
-      .select("id")
+      .from("place_google_data")
+      .select("place_id")
       .eq("google_place_id", v)
       .eq("city_slug", city)
       .eq("category_slug", cat)
-      .neq("id", ownRowId)
+      .neq("place_id", ownRowId)
       .limit(1);
     if (error) throw error;
     if ((data?.length ?? 0) > 0) return true;
@@ -247,7 +247,7 @@ async function resolvePhotoUri(photoName: string): Promise<string | null> {
 async function syncCity(citySlug: string) {
   const { data: places, error } = await supabase
     .from("places")
-    .select("id,name,address,city_slug,category_slug,latitude,longitude,image")
+    .select("place_id,name,address,city_slug,category_slug,latitude,longitude,image")
     .eq("city_slug", citySlug)
     .order("name", { ascending: true });
 
@@ -257,7 +257,8 @@ async function syncCity(citySlug: string) {
     return;
   }
 
-  for (const place of places as PlaceRow[]) {
+  for (const raw of places) {
+    const place = { ...raw, id: raw.place_id } as PlaceRow;
     try {
       console.log(`Searching Google for: ${place.name}`);
 
@@ -265,13 +266,15 @@ async function syncCity(citySlug: string) {
 
       if (!best) {
         await supabase
-          .from("places")
-          .update({
+          .from("place_google_data")
+          .upsert({
+            place_id: place.id,
+            city_slug: place.city_slug,
+            category_slug: place.category_slug,
             google_match_status: "review",
             google_match_score: 0,
-            google_last_synced_at: new Date().toISOString(),
-          })
-          .eq("id", place.id);
+            synced_at: new Date().toISOString(),
+          }, { onConflict: "place_id,city_slug,category_slug" });
 
         console.log(`No candidate found for ${place.name}`);
         continue;
@@ -282,9 +285,6 @@ async function syncCity(citySlug: string) {
       const photoName = best.photos?.[0]?.name ?? null;
       const photoUri = photoName ? await resolvePhotoUri(photoName) : null;
 
-      // High confidence only -> matched; everything else -> review. Never set rejected here.
-      // Same city+category only: if another row in this listing already has this google_place_id,
-      // do not attach here — force review (no duplicate slug rows in one category).
       const wantsMatched = matchScore >= 75;
       const googleId = best.id ?? null;
       const idCollision =
@@ -299,17 +299,19 @@ async function syncCity(citySlug: string) {
       const assignGoogleId = googleId != null && !idCollision;
 
       await supabase
-        .from("places")
-        .update({
+        .from("place_google_data")
+        .upsert({
+          place_id: place.id,
+          city_slug: place.city_slug,
+          category_slug: place.category_slug,
           ...(assignGoogleId ? { google_place_id: googleId } : {}),
           google_maps_uri: best.googleMapsUri ?? null,
           google_photo_name: photoName,
           google_photo_uri: photoUri,
           google_match_score: matchScore,
           google_match_status: status,
-          google_last_synced_at: new Date().toISOString(),
-        })
-        .eq("id", place.id);
+          synced_at: new Date().toISOString(),
+        }, { onConflict: "place_id,city_slug,category_slug" });
 
       if (idCollision) {
         console.warn(

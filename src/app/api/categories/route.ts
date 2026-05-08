@@ -1,58 +1,32 @@
-import { ok } from "@/lib/api-response";
+import { fail, ok } from "@/lib/api-response";
 import {
     cityExistsInSupabase,
     getCategoriesByCityFromSupabase,
-    isSafeCitySlug,
 } from "@/lib/place-repository";
-import { NextResponse } from "next/server";
-
-function errorResponse(message: string, status: number) {
-    return NextResponse.json(
-        {
-            success: false,
-            message,
-            data: null,
-        },
-        { status }
-    );
-}
+import { citySlugQuery, parseSearchParams } from "@/lib/schemas/api";
+import { ZodError } from "zod";
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
-        const city_slug = (searchParams.get("city_slug") ?? "").trim();
-
-        console.log("[categories api] city_slug:", city_slug);
-
-        if (!city_slug) {
-            return errorResponse("city_slug is required", 400);
-        }
-
-        if (!isSafeCitySlug(city_slug)) {
-            return errorResponse("Invalid city_slug", 400);
-        }
+        const { city_slug } = parseSearchParams(citySlugQuery, searchParams);
 
         const exists = await cityExistsInSupabase(city_slug);
-        if (!exists) {
-            console.log("[categories api] city not in database:", city_slug);
-            return errorResponse("City not found", 404);
-        }
+        if (!exists) return fail("City not found", 404);
 
         const categories = await getCategoriesByCityFromSupabase(city_slug);
-        const n = categories.length;
-        console.log(`[categories api] found ${n} categories for ${city_slug}`);
-
-        if (n === 0) {
-            return errorResponse("No categories for this city", 404);
-        }
+        if (categories.length === 0) return fail("No categories for this city", 404);
 
         return ok("Categories fetched successfully", {
             city_slug,
-            count: n,
+            count: categories.length,
             categories,
         });
     } catch (error) {
+        if (error instanceof ZodError) {
+            return fail(error.issues[0]?.message ?? "Invalid parameters", 400);
+        }
         console.error("Failed to fetch categories", error);
-        return errorResponse("Failed to fetch categories", 500);
+        return fail("Failed to fetch categories", 500);
     }
 }
