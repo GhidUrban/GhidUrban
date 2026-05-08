@@ -247,7 +247,7 @@ ${queryParts.join("\n")}
     let extImported = new Set<string>();
     if (extIds.length > 0) {
       const { data: extRows, error: extError } = await supabase
-        .from("places")
+        .from("place_listings")
         .select("external_place_id")
         .in("external_place_id", extIds);
 

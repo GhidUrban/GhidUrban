@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
 import { CategoryPlacesSection } from "@/components/CategoryPlacesSection";
-import { SessionLocationIndicator } from "@/components/SessionLocationIndicator";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
 import { notFound } from "next/navigation";
@@ -70,7 +69,6 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
                     ]}
                     title={categoryName}
                     titleClassName="max-w-2xl"
-                    breadcrumbRowExtra={<SessionLocationIndicator citySlug={slug} size="subtle" />}
                 />
 
                 <CategoryPlacesSection places={[...places]} slug={slug} category={category} />

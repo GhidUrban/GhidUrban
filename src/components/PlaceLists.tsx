@@ -8,7 +8,7 @@ type PlacesListProps = {
   places: Place[];
   slug: string;
   category: string;
-  /** Distanțe după ce utilizatorul a folosit „Folosește locația mea” în secțiunea de recomandări. */
+  /** Distanțe calculate automat din geolocația sesiunii. */
   distanceByPlaceId?: Record<string, number>;
 };
 

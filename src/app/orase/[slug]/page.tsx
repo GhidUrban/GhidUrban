@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { CityGeolocationCard } from "@/components/CityGeolocationCard";
 import { OraseCategorySearchGrid } from "@/components/OraseCategorySearchGrid";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
 import { apiGet } from "@/lib/internal-api";
@@ -66,7 +65,6 @@ export default async function CityPage({ params }: CityPageProps) {
                     ]}
                     title={cityName}
                     titleClassName="max-w-2xl"
-                    breadcrumbRowExtra={<CityGeolocationCard citySlug={slug} compact size="subtle" />}
                 />
 
                 <OraseCategorySearchGrid citySlug={slug} categories={categories} />

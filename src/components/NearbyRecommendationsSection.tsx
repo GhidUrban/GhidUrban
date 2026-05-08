@@ -60,7 +60,6 @@ type PlacesApiShape = {
 type LocationState = {
   loadingLocation: boolean;
   noLocation: boolean;
-  needsLocationCta: boolean;
 };
 
 function parseRecItems(raw: unknown): RecItem[] {
@@ -180,7 +179,6 @@ function NearbyRecommendationsSection({
   const [location, setLocation] = useState<LocationState>({
     loadingLocation: true,
     noLocation: false,
-    needsLocationCta: false,
   });
   const [rows, setRows] = useState<SectionRow[]>([]);
   const [sectionKind, setSectionKind] = useState<"nearby" | "fallback" | null>(
@@ -220,7 +218,6 @@ function NearbyRecommendationsSection({
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocation((prev) => ({
         ...prev,
-        needsLocationCta: false,
         noLocation: true,
         loadingLocation: true,
       }));
@@ -233,7 +230,6 @@ function NearbyRecommendationsSection({
 
     setLocation((prev) => ({
       ...prev,
-      needsLocationCta: false,
       loadingLocation: true,
       noLocation: false,
     }));
@@ -298,22 +294,12 @@ function NearbyRecommendationsSection({
     setSectionKind(null);
     onDistancesChange?.({});
 
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setLocation({
-        loadingLocation: true,
-        noLocation: true,
-        needsLocationCta: false,
-      });
-      void loadFallback();
-      return;
-    }
-
     setLocation({
-      loadingLocation: false,
+      loadingLocation: true,
       noLocation: false,
-      needsLocationCta: true,
     });
-  }, [citySlug, categorySlug, excludePlaceId, loadFallback, onDistancesChange]);
+    requestLocation();
+  }, [requestLocation, onDistancesChange]);
 
   useEffect(() => {
     if (!onRecommendationsChange) {
@@ -325,40 +311,6 @@ function NearbyRecommendationsSection({
       onRecommendationsChange([]);
     }
   }, [rows, sectionKind, onRecommendationsChange]);
-
-  if (location.needsLocationCta && !location.noLocation) {
-    return (
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => requestLocation()}
-          className="inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2"
-        >
-          <svg
-            className="h-4 w-4 shrink-0 text-gray-600"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.75}
-            stroke="currentColor"
-            aria-hidden
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z"
-            />
-          </svg>
-          Folosește locația mea
-        </button>
-      </div>
-    );
-  }
 
   if (location.loadingLocation && rows.length === 0) {
     return (

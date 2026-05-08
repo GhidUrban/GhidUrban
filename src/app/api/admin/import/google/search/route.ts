@@ -63,9 +63,9 @@ export async function POST(req: Request) {
 
         console.log("[Google import] POST city=", city_slug, "category=", category_slug);
 
-        const { data: existingRows, error: exErr } = await supabase
+        const { data: placeRows, error: exErr } = await supabase
             .from("places")
-            .select("external_place_id, name, latitude, longitude")
+            .select("place_id, name, latitude, longitude")
             .eq("city_slug", city_slug)
             .eq("category_slug", category_slug);
 
@@ -77,12 +77,37 @@ export async function POST(req: Request) {
             );
         }
 
-        const existing = (existingRows ?? []) as {
-            external_place_id: string | null;
+        const { data: listingRows, error: liErr } = await supabase
+            .from("place_listings")
+            .select("place_id, external_place_id")
+            .eq("city_slug", city_slug)
+            .eq("category_slug", category_slug);
+
+        if (liErr) {
+            console.error("[Google import] Supabase listings:", liErr);
+            return NextResponse.json(
+                { success: false, message: "Nu s-au putut încărca listingurile existente.", data: null },
+                { status: 500 },
+            );
+        }
+
+        const extByPid = new Map<string, string | null>();
+        for (const lr of listingRows ?? []) {
+            const row = lr as { place_id: string; external_place_id: string | null };
+            extByPid.set(row.place_id, row.external_place_id ?? null);
+        }
+
+        const existing = ((placeRows ?? []) as {
+            place_id: string;
             name: string | null;
             latitude: number | null;
             longitude: number | null;
-        }[];
+        }[]).map((r) => ({
+            external_place_id: extByPid.get(r.place_id) ?? null,
+            name: r.name,
+            latitude: r.latitude,
+            longitude: r.longitude,
+        }));
 
         const nameLowerSet = new Set<string>();
         for (const r of existing) {

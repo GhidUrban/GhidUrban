@@ -29,7 +29,7 @@ export async function getNearbyRecommendedPlacesFromSupabase(
     let query = supabase
         .from("places")
         .select(
-            "place_id, city_slug, category_slug, name, address, image, image_storage_path, rating, maps_url, latitude, longitude, google_match_status, google_photo_uri",
+            "place_id, city_slug, category_slug, name, address, image, image_storage_path, rating, maps_url, latitude, longitude",
         )
         .eq("status", "available")
         .not("latitude", "is", null)
@@ -54,8 +54,6 @@ export async function getNearbyRecommendedPlacesFromSupabase(
         place_id: string; city_slug: string; category_slug: string; name: string;
         address: string | null; image: string | null; image_storage_path?: string | null;
         rating: number | null; maps_url: string | null; latitude: number | null; longitude: number | null;
-        google_match_status?: string | null;
-        google_photo_uri?: string | null;
     }>;
     const keys = coreRows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
     const [gdMap, liMap] = await Promise.all([
@@ -88,8 +86,8 @@ export async function getNearbyRecommendedPlacesFromSupabase(
             image: raw.image_storage_path ?? raw.image,
             rating: raw.rating,
             maps_url: raw.maps_url, distance_km, active_featured, active_promoted, listing_tier_rank,
-            google_match_status: gd?.google_match_status ?? raw.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? raw.google_photo_uri ?? null,
+            google_match_status: gd?.google_match_status ?? null,
+            google_photo_uri: gd?.google_photo_uri ?? null,
         });
     }
     return out;

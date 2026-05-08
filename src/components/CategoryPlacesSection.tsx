@@ -6,8 +6,10 @@ import { PlacesList } from "@/components/PlaceLists";
 import type { Place } from "@/data/places";
 import { haversineKm } from "@/lib/haversine-km";
 import {
+  dispatchSessionLocationChanged,
   LOCATION_CHANGED_EVENT,
   readSessionUserLocation,
+  saveSessionUserLocation,
 } from "@/lib/session-user-location";
 
 const NEARBY_MAX = 6;
@@ -38,6 +40,7 @@ export function CategoryPlacesSection({
     lat: number;
     lng: number;
   } | null>(null);
+  const [hasAutoGeoTried, setHasAutoGeoTried] = useState(false);
 
   function syncSessionCoords(): void {
     const s = readSessionUserLocation(slug);
@@ -57,6 +60,33 @@ export function CategoryPlacesSection({
     };
   }, [slug]);
 
+  useEffect(() => {
+    if (hasAutoGeoTried) return;
+    if (sessionCoords) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setHasAutoGeoTried(true);
+      return;
+    }
+
+    setHasAutoGeoTried(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return;
+        }
+        saveSessionUserLocation({ lat, lng, citySlug: slug });
+        dispatchSessionLocationChanged();
+        setSessionCoords({ lat, lng });
+      },
+      () => {
+        /* no-op */
+      },
+      { enableHighAccuracy: false, timeout: 12_000, maximumAge: 600_000 },
+    );
+  }, [hasAutoGeoTried, sessionCoords, slug]);
+
   const nearbyWithKm = useMemo(() => {
     if (!sessionCoords) return [];
     const { lat: uLat, lng: uLng } = sessionCoords;
@@ -75,6 +105,13 @@ export function CategoryPlacesSection({
 
   const showNearbySection =
     hasMounted && sessionCoords != null && nearbyWithKm.length > 0;
+  const distanceByPlaceId = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const item of nearbyWithKm) {
+      map[item.place.id] = item.km;
+    }
+    return map;
+  }, [nearbyWithKm]);
 
   return (
     <>
@@ -111,7 +148,12 @@ export function CategoryPlacesSection({
       ) : null}
 
       <div className={showNearbySection ? "mt-8 sm:mt-10" : "mt-0"}>
-        <PlacesList places={places} slug={slug} category={category} />
+        <PlacesList
+          places={places}
+          slug={slug}
+          category={category}
+          distanceByPlaceId={distanceByPlaceId}
+        />
       </div>
     </>
   );

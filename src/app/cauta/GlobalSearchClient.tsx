@@ -22,13 +22,6 @@ import {
     readSessionUserLocation,
     saveSessionUserLocation,
 } from "@/lib/session-user-location";
-import {
-    LOCATION_PILL_ACTIVE,
-    LOCATION_PILL_DOT,
-    LOCATION_PILL_IDLE,
-    LOCATION_PILL_LOADING,
-    locationPillBaseClass,
-} from "@/components/location-pill-style";
 import { CautaRecentVisitedRow } from "@/components/CautaRecentVisitedRow";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 
@@ -55,7 +48,7 @@ export function GlobalSearchClient({
     const [showSearchingText, setShowSearchingText] = useState(false);
     const [activeCitySlug, setActiveCitySlug] = useState<string | null>(null);
     const [activeCoords, setActiveCoords] = useState<{ lat: number; lng: number } | null>(null);
-    const [geoBusy, setGeoBusy] = useState(false);
+    const hasTriedAutoGeoRef = useRef(false);
     const [recentPlaces, setRecentPlaces] = useState<RecentPlaceVisit[]>([]);
 
     useEffect(() => {
@@ -136,11 +129,6 @@ export function GlobalSearchClient({
         : activeCitySlug
           ? "empty_with_location"
           : "empty_no_location";
-    const locationLabel = geoBusy
-        ? "Se solicită..."
-        : activeCitySlug
-          ? "Dezactivează locația"
-          : "Folosește locația mea";
 
     function commitQuery(nextRaw: string) {
         const next = nextRaw.trim();
@@ -183,24 +171,16 @@ export function GlobalSearchClient({
         return bestCity;
     }
 
-    function toggleLocation() {
-        if (geoBusy) return;
-        if (activeCitySlug) {
-            clearSessionUserLocation();
-            dispatchSessionLocationChanged();
-            setActiveCitySlug(null);
-            return;
-        }
+    useEffect(() => {
+        if (hasTriedAutoGeoRef.current) return;
+        if (activeCoords) return;
         if (typeof navigator === "undefined" || !navigator.geolocation) return;
-        setGeoBusy(true);
+        hasTriedAutoGeoRef.current = true;
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
                 const citySlug = inferNearestCitySlug(latitude, longitude);
-                if (!citySlug) {
-                    setGeoBusy(false);
-                    return;
-                }
+                if (!citySlug) return;
                 saveSessionUserLocation({
                     lat: latitude,
                     lng: longitude,
@@ -208,14 +188,17 @@ export function GlobalSearchClient({
                 });
                 dispatchSessionLocationChanged();
                 setActiveCitySlug(citySlug);
-                setGeoBusy(false);
+                setActiveCoords({ lat: latitude, lng: longitude });
             },
             () => {
-                setGeoBusy(false);
+                clearSessionUserLocation();
+                dispatchSessionLocationChanged();
+                setActiveCitySlug(null);
+                setActiveCoords(null);
             },
             { enableHighAccuracy: false, timeout: 12_000, maximumAge: 600_000 },
         );
-    }
+    }, [activeCoords, index.places]);
 
     const quickSuggestions = [
         { label: "Cafenele", slug: "cafenele" },
@@ -282,25 +265,6 @@ export function GlobalSearchClient({
                             items={[{ label: "Acasă", href: "/" }, { label: "Caută" }]}
                             muted
                         />
-                    </div>
-                    <div className="m-0 flex shrink-0 items-center p-0">
-                        <button
-                            type="button"
-                            onClick={toggleLocation}
-                            disabled={geoBusy}
-                            aria-busy={geoBusy}
-                            aria-pressed={Boolean(activeCitySlug)}
-                        className={`${locationPillBaseClass("compact")} ${geoBusy
-                            ? LOCATION_PILL_LOADING
-                            : activeCitySlug
-                                ? LOCATION_PILL_ACTIVE
-                                : LOCATION_PILL_IDLE}`}
-                        >
-                            {activeCitySlug ? (
-                            <span className={LOCATION_PILL_DOT} aria-hidden />
-                            ) : null}
-                            {locationLabel}
-                        </button>
                     </div>
                 </div>
                 <h1 className="text-center text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
