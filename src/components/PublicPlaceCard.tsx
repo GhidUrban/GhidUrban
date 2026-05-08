@@ -5,24 +5,6 @@ import Link from "next/link";
 import { PlaceImage } from "@/components/PlaceImage";
 import type { Place } from "@/data/places";
 
-function AddressPinIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
 export type PublicPlaceCardProps = {
   place: Pick<Place, "id" | "image" | "name" | "address"> & {
     rating?: number;
@@ -41,8 +23,10 @@ export type PublicPlaceCardProps = {
   statusLabel?: "available" | "hidden";
   /** Optional title node (e.g. search highlight). */
   titleContent?: ReactNode;
-  /** Lighter card: shorter image, no address (e.g. similar places strip). */
+  /** Kept for backward compatibility; all variants now use the same layout. */
   variant?: "default" | "compact";
+  /** Optional width control from parent wrappers (e.g. carousels). */
+  className?: string;
 };
 
 export function PublicPlaceCard({
@@ -56,18 +40,20 @@ export function PublicPlaceCard({
   statusLabel,
   titleContent,
   variant = "default",
+  className,
 }: PublicPlaceCardProps) {
-  const isCompact = variant === "compact";
+  void variant;
   const isFeatured = activeFeatured;
   const isPromotedOnly = activePromoted && !isFeatured;
   const showNearby =
     distanceKm != null && Number.isFinite(distanceKm) && distanceKm >= 0;
+  const cityLabel = citySlug.replace(/-/g, " ");
 
   const ratingText =
     typeof place.rating === "number" &&
     Number.isFinite(place.rating) &&
     place.rating > 0
-      ? `Notă ${place.rating.toFixed(1)}`
+      ? `${place.rating.toFixed(1)} ★`
       : null;
 
   const shellClass =
@@ -79,9 +65,10 @@ export function PublicPlaceCard({
   const cardInner = (
     <div className={cardToneClass}>
       <div className="relative overflow-hidden rounded-t-2xl">
+        <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/20 via-transparent to-transparent" />
         {showNearby ? (
-          <div className="pointer-events-none absolute left-2 top-2 z-10">
-            <span className="inline-flex rounded-md border border-black/[0.06] bg-white/95 px-2 py-0.5 text-[11px] font-medium tabular-nums text-gray-600">
+          <div className="pointer-events-none absolute bottom-2 left-2 z-10">
+            <span className="inline-flex rounded-md bg-white/90 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-gray-700 backdrop-blur-sm">
               {distanceKm.toFixed(1)} km
             </span>
           </div>
@@ -92,49 +79,39 @@ export function PublicPlaceCard({
           categorySlug={categorySlug || "preview"}
           width={600}
           height={400}
-          className={`${isCompact ? "h-28" : "h-40"} w-full object-cover transition-transform duration-200 ease-out md:group-hover:scale-[1.01]`}
+          className="h-36 w-full object-cover transition-transform duration-200 ease-out sm:h-40 md:group-hover:scale-[1.01]"
         />
       </div>
-      <div className={isCompact ? "p-2.5" : "p-2.5 sm:p-3"}>
+      <div className="px-3 py-2.5">
         {isFeatured ? (
-          <div className={`flex flex-wrap items-center gap-2 ${isCompact ? "mb-1" : "mb-1.5"}`}>
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-700 ring-1 ring-inset ring-yellow-200">
               Promovat
             </span>
           </div>
         ) : isPromotedOnly ? (
-          <div className={`flex flex-wrap items-center gap-2 ${isCompact ? "mb-1" : "mb-1.5"}`}>
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
               Recomandat
             </span>
           </div>
         ) : null}
         <h3
-          className={
-            isCompact
-              ? "block min-h-5 min-w-0 truncate whitespace-nowrap text-sm font-semibold leading-5 text-gray-900"
-              : "min-w-0 overflow-hidden break-words text-sm font-semibold leading-snug text-gray-900 line-clamp-2"
-          }
+          className="truncate text-[13px] font-semibold leading-snug text-gray-900 sm:text-sm"
         >
           {titleContent ?? place.name}
         </h3>
-        {!isCompact && place.address?.trim() ? (
-          <div className="mt-1 flex items-center gap-1">
-            <AddressPinIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <p className="min-w-0 text-sm leading-snug text-gray-600">{place.address.trim()}</p>
-          </div>
-        ) : null}
-        {ratingText ? (
-          <p
-            className={
-              isCompact
-                ? "mt-0.5 text-xs font-normal tabular-nums leading-snug text-gray-600"
-                : "mt-1.5 text-sm font-medium leading-snug text-gray-600"
-            }
-          >
-            {ratingText}
-          </p>
-        ) : null}
+        <p
+          className={`mt-1 text-[11px] font-medium tabular-nums ${
+            ratingText ? "text-amber-600" : "text-transparent"
+          }`}
+          aria-hidden={!ratingText}
+        >
+          {ratingText ?? "0.0 ★"}
+        </p>
+        <p className="mt-0.5 truncate text-[11px] leading-snug text-gray-400 capitalize">
+          {cityLabel}
+        </p>
         {statusLabel ? (
           <p
             className={
@@ -152,11 +129,11 @@ export function PublicPlaceCard({
 
   if (href) {
     return (
-      <Link href={href} className={shellClass}>
+      <Link href={href} className={`${shellClass} ${className ?? ""}`.trim()}>
         {cardInner}
       </Link>
     );
   }
 
-  return <div className={`${shellClass} pointer-events-none`}>{cardInner}</div>;
+  return <div className={`${shellClass} ${className ?? ""} pointer-events-none`.trim()}>{cardInner}</div>;
 }

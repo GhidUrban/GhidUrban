@@ -175,9 +175,9 @@ export function supabasePlaceToPlace(p: SupabasePlace): Place {
         website: p.website ?? "", mapsUrl: p.maps_url ?? "",
         featured, featured_until, activeFeatured, activePromoted, listingTierRank,
         latitude: p.latitude, longitude: p.longitude,
-        google_match_status: gd?.google_match_status ?? null,
-        google_photo_uri: gd?.google_photo_uri ?? null,
-        google_hours_raw: gd?.google_hours_raw ?? null,
+        google_match_status: gd?.google_match_status ?? p.google_match_status ?? null,
+        google_photo_uri: gd?.google_photo_uri ?? p.google_photo_uri ?? null,
+        google_hours_raw: gd?.google_hours_raw ?? p.google_hours_raw ?? null,
     };
 }
 
@@ -197,7 +197,9 @@ export async function getPlacesByCategoryFromSupabase(
 ): Promise<SupabasePlace[]> {
     const { data, error } = await supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, latitude, longitude")
+        .select(
+            "place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
+        )
         .eq("city_slug", citySlug).eq("category_slug", categorySlug)
         .eq("status", "available").order("name", { ascending: true });
     if (error) throw new Error("Failed to fetch places");
@@ -207,6 +209,9 @@ export async function getPlacesByCategoryFromSupabase(
         image: string | null; image_storage_path?: string | null; rating: number | null;
         phone: string | null; website: string | null; maps_url: string | null;
         latitude: number | null; longitude: number | null;
+        google_match_status?: string | null;
+        google_photo_uri?: string | null;
+        google_hours_raw?: unknown | null;
     }>;
     const keys = rows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
     const [gdMap, liMap] = await Promise.all([
@@ -225,7 +230,9 @@ export async function getPlacesSearchIndexRowsFromSupabase(
 ): Promise<PlaceSearchIndexRow[]> {
     const { data, error } = await supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, latitude, longitude, address, image, image_storage_path, rating")
+        .select(
+            "place_id, city_slug, category_slug, name, latitude, longitude, address, image, image_storage_path, rating, google_match_status, google_photo_uri",
+        )
         .eq("city_slug", citySlug.trim()).eq("category_slug", categorySlug.trim())
         .eq("status", "available").order("name", { ascending: true });
     if (error) throw new Error("Failed to fetch places for search index");
@@ -233,6 +240,8 @@ export async function getPlacesSearchIndexRowsFromSupabase(
         place_id: string; city_slug: string; category_slug: string; name: string;
         latitude: number | null; longitude: number | null; address: string | null;
         image: string | null; image_storage_path?: string | null; rating: number | null;
+        google_match_status?: string | null;
+        google_photo_uri?: string | null;
     }>;
     const keys = rows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
     const [gdMap, liMap] = await Promise.all([
@@ -254,8 +263,8 @@ export async function getPlacesSearchIndexRowsFromSupabase(
             featured_until: li?.featured_until ?? null,
             plan_type: li?.plan_type ?? null,
             plan_expires_at: li?.plan_expires_at ?? null,
-            google_match_status: gd?.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? null,
+            google_match_status: gd?.google_match_status ?? r.google_match_status ?? null,
+            google_photo_uri: gd?.google_photo_uri ?? r.google_photo_uri ?? null,
         };
     });
 }
@@ -267,7 +276,9 @@ export async function getPlaceByIdFromSupabase(
 ): Promise<SupabasePlace | null> {
     const { data, error } = await supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, latitude, longitude")
+        .select(
+            "place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, latitude, longitude, google_match_status, google_photo_uri, google_hours_raw",
+        )
         .eq("city_slug", citySlug).eq("category_slug", categorySlug)
         .eq("place_id", placeId).eq("status", "available").single();
     if (error) return null;
@@ -277,6 +288,9 @@ export async function getPlaceByIdFromSupabase(
         image: string | null; image_storage_path?: string | null; rating: number | null;
         phone: string | null; website: string | null; maps_url: string | null;
         latitude: number | null; longitude: number | null;
+        google_match_status?: string | null;
+        google_photo_uri?: string | null;
+        google_hours_raw?: unknown | null;
     };
     const key = { place_id: row.place_id, city_slug: row.city_slug, category_slug: row.category_slug };
     const [gdMap, liMap] = await Promise.all([
@@ -295,7 +309,9 @@ export async function getPopularPlacesFromSupabase(
 ): Promise<PopularPlaceRow[]> {
     const { data, error } = await supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, image, image_storage_path, rating")
+        .select(
+            "place_id, city_slug, category_slug, name, image, image_storage_path, rating, google_match_status, google_photo_uri",
+        )
         .eq("status", "available")
         .in("category_slug", categorySlugs)
         .not("rating", "is", null)
@@ -306,6 +322,8 @@ export async function getPopularPlacesFromSupabase(
     const rows = (data ?? []) as Array<{
         place_id: string; city_slug: string; category_slug: string; name: string;
         image: string | null; image_storage_path?: string | null; rating: number;
+        google_match_status?: string | null;
+        google_photo_uri?: string | null;
     }>;
     const keys = rows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
     const gdMap = await fetchPlaceGoogleDataMap(keys);
@@ -318,8 +336,8 @@ export async function getPopularPlacesFromSupabase(
             name: r.name,
             image: r.image_storage_path ?? r.image,
             rating: r.rating,
-            google_match_status: gd?.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? null,
+            google_match_status: gd?.google_match_status ?? r.google_match_status ?? null,
+            google_photo_uri: gd?.google_photo_uri ?? r.google_photo_uri ?? null,
         };
     });
 }

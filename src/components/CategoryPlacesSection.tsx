@@ -89,7 +89,7 @@ export function CategoryPlacesSection({
           >
             Aproape de tine
           </h2>
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-5">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {nearbyWithKm.map(({ place: p, km }) => {
               const isFeatured = p.activeFeatured === true;
               const isPromoted = p.activePromoted === true;

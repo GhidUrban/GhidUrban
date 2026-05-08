@@ -1,9 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { resolvePlaceImageSrc } from "@/lib/resolve-place-image-src";
+import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { DelayedSpinner } from "@/components/DelayedSpinner";
 
 type CarouselPlace = {
@@ -106,51 +104,26 @@ export function HomePlacesCarousel({
 
       <div className="no-scrollbar flex gap-3 overflow-x-auto scroll-smooth px-4 snap-x snap-mandatory">
         {places.map((place) => {
-          const src = resolvePlaceImageSrc({
-            image: place.image,
-            google_match_status: place.google_match_status,
-            google_photo_uri: place.google_photo_uri,
-            category_slug: place.category_slug,
-          });
-
           return (
-            <Link
+            <PublicPlaceCard
               key={`${place.city_slug}-${place.category_slug}-${place.place_id}`}
+              place={{
+                id: place.place_id,
+                name: place.name,
+                address: "",
+                image: place.image ?? "",
+                rating: place.rating ?? 0,
+                google_match_status: place.google_match_status,
+                google_photo_uri: place.google_photo_uri,
+              }}
+              citySlug={place.city_slug}
+              categorySlug={place.category_slug}
+              activeFeatured={false}
+              activePromoted={false}
+              distanceKm={useNearby ? place.distance_km : undefined}
               href={`/orase/${place.city_slug}/${place.category_slug}/${place.place_id}`}
-              className="group w-44 shrink-0 snap-start sm:w-52"
-            >
-              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/[0.04] transition-all duration-200 active:scale-[0.98] md:hover:shadow-md md:hover:-translate-y-0.5">
-                <div className="relative overflow-hidden">
-                  <Image
-                    src={src}
-                    alt={place.name}
-                    width={400}
-                    height={260}
-                    className="h-36 w-full object-cover sm:h-40"
-                  />
-                  {useNearby && place.distance_km != null && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent p-2.5 pt-8">
-                      <span className="inline-flex rounded-md bg-white/90 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-gray-700 backdrop-blur-sm">
-                        {place.distance_km.toFixed(1)} km
-                      </span>
-                    </div>
-                  )}
-                </div>
-                <div className="px-3 py-2.5">
-                  <h3 className="truncate text-[13px] font-semibold leading-snug text-gray-900 sm:text-sm">
-                    {place.name}
-                  </h3>
-                  {place.rating != null && place.rating > 0 && (
-                    <p className="mt-1 text-[11px] font-medium tabular-nums text-amber-600">
-                      {place.rating.toFixed(1)} ★
-                    </p>
-                  )}
-                  <p className="mt-0.5 truncate text-[11px] leading-snug text-gray-400 capitalize">
-                    {place.city_slug.replace(/-/g, " ")}
-                  </p>
-                </div>
-              </div>
-            </Link>
+              className="w-44 shrink-0 snap-start sm:w-52"
+            />
           );
         })}
       </div>
