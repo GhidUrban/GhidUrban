@@ -412,7 +412,7 @@ function toPlacesResourceFromSearchHit(hit: TextSearchPlace): string | null {
     return `places/${bare.replace(/^places\//, "")}`;
 }
 
-function pickBestSearchCandidateForCity(
+export function pickBestSearchCandidateForCity(
     places: TextSearchPlace[],
     city_slug: string,
     center: { lat: number; lon: number },
@@ -465,7 +465,7 @@ function pickBestSearchCandidateForCity(
     return { hit, resource };
 }
 
-async function textSearchPlacesForCity(
+export async function textSearchPlacesForCity(
     apiKey: string,
     textQuery: string,
     center: { lat: number; lon: number },

@@ -1,15 +1,8 @@
 import type { Metadata } from "next";
 import { OraseCitySearchGrid } from "@/components/OraseCitySearchGrid";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
-import { getPublicCitiesFromSupabase } from "@/lib/place-repository";
-
-type CitiesApiResponseData = {
-    count: number;
-    cities: Array<{
-        city_slug: string;
-        city_name: string;
-    }>;
-};
+import { fetchPublicCitiesFromApi } from "@/lib/fetch-public-cities-api";
+import type { PublicCityApiRow } from "@/lib/cities-api";
 
 export const metadata: Metadata = {
     title: "Orașe | GhidUrban",
@@ -26,13 +19,9 @@ export const metadata: Metadata = {
 };
 
 export default async function OrasePage() {
-    let cities: CitiesApiResponseData["cities"] = [];
+    let cities: PublicCityApiRow[] = [];
     try {
-        const rows = await getPublicCitiesFromSupabase();
-        cities = rows.map((c) => ({
-            city_slug: c.slug,
-            city_name: c.name,
-        }));
+        cities = await fetchPublicCitiesFromApi();
     } catch {
         cities = [];
     }

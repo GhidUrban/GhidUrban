@@ -89,20 +89,24 @@ export function HomePlacesCarousel({
   const title = useNearby ? "Locuri aproape de tine" : "Locuri populare";
 
   if (isLoadingNearby) {
-    return <DelayedSpinner />;
+    return (
+      <section className="mx-auto w-full max-w-5xl shrink-0 flex-none pb-6">
+        <DelayedSpinner />
+      </section>
+    );
   }
 
   if (places.length === 0) return null;
 
   return (
-    <section className="mx-auto w-full max-w-5xl pb-6">
-      <div className="mb-3 flex items-center justify-between px-4">
-        <h2 className="text-[15px] font-semibold text-gray-800 sm:text-base">
+    <section className="mx-auto w-full max-w-5xl shrink-0 flex-none pb-6">
+      <div className="mb-3 flex shrink-0 items-center justify-between px-5">
+        <h2 className="text-[15px] font-semibold text-slate-800 sm:text-base">
           {title}
         </h2>
       </div>
 
-      <div className="no-scrollbar flex gap-3 overflow-x-auto scroll-smooth px-4 snap-x snap-mandatory">
+      <div className="no-scrollbar flex scroll-px-5 items-start gap-3 overflow-x-auto overflow-y-hidden scroll-smooth px-5 pb-1 snap-x snap-mandatory">
         {places.map((place) => {
           return (
             <PublicPlaceCard

@@ -4,6 +4,7 @@ import {
     getPublicCitiesFromSupabase,
 } from "@/lib/place-repository";
 import { resolveListing } from "@/lib/listing-plan";
+import { normalizeForSearch } from "@/lib/global-place-search";
 
 export type GlobalSearchCity = {
     slug: string;
@@ -34,6 +35,10 @@ export type GlobalSearchPlace = {
     active_promoted?: boolean;
     google_match_status?: string | null;
     google_photo_uri?: string | null;
+    /** Pre-computed normalizeForSearch(name) — avoids re-normalizing per keystroke. */
+    _n_name?: string;
+    /** Pre-computed normalizeForSearch(address) — avoids re-normalizing per keystroke. */
+    _n_addr?: string;
 };
 
 export type GlobalSearchIndex = {
@@ -53,18 +58,23 @@ async function loadGlobalSearchIndexUncached(): Promise<GlobalSearchIndex> {
         name: c.name,
     }));
 
+    const perCityResults = await Promise.all(
+        citiesRows.map(async (city) => {
+            const cats = await getCategoriesByCityFromSupabase(city.slug);
+            const perCategory = await Promise.all(
+                cats.map(async (cat) => {
+                    const placeRows = await getPlacesSearchIndexRowsFromSupabase(city.slug, cat.category_slug);
+                    return { cat, placeRows };
+                }),
+            );
+            return { city, perCategory };
+        }),
+    );
+
     const categories: GlobalSearchCategory[] = [];
     const places: GlobalSearchPlace[] = [];
 
-    for (const city of citiesRows) {
-        const cats = await getCategoriesByCityFromSupabase(city.slug);
-        const perCategory = await Promise.all(
-            cats.map(async (cat) => {
-                const placeRows = await getPlacesSearchIndexRowsFromSupabase(city.slug, cat.category_slug);
-                return { cat, placeRows };
-            }),
-        );
-
+    for (const { city, perCategory } of perCityResults) {
         for (const { cat, placeRows } of perCategory) {
             categories.push({
                 city_slug: city.slug,
@@ -79,6 +89,7 @@ async function loadGlobalSearchIndexUncached(): Promise<GlobalSearchIndex> {
                     plan_type: p.plan_type,
                     plan_expires_at: p.plan_expires_at,
                 });
+                const addr = p.address ?? "";
                 places.push({
                     place_id: p.place_id,
                     name: p.name,
@@ -88,13 +99,15 @@ async function loadGlobalSearchIndexUncached(): Promise<GlobalSearchIndex> {
                     category_name: cat.category_name ?? "",
                     latitude: p.latitude ?? null,
                     longitude: p.longitude ?? null,
-                    address: p.address ?? null,
+                    address: addr || null,
                     image: p.image ?? null,
                     rating: p.rating ?? null,
                     active_featured: activeFeatured,
                     active_promoted: activePromoted,
                     google_match_status: p.google_match_status ?? null,
                     google_photo_uri: p.google_photo_uri ?? null,
+                    _n_name: normalizeForSearch(p.name),
+                    _n_addr: normalizeForSearch(addr),
                 });
             }
         }

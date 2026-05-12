@@ -5,6 +5,10 @@
 
 import { haversineKm } from "@/lib/haversine-km";
 import {
+    normalizeCanonicalGooglePlaceId,
+    normalizePlaceAddressForDedupe,
+} from "@/lib/repositories/place-repository";
+import {
     GOOGLE_IMPORT_CATEGORY_MAP,
     type GoogleImportSupportedCategory,
 } from "@/lib/google-import-categories";
@@ -65,6 +69,7 @@ function sleep(ms: number): Promise<void> {
 export type ExistingPlaceRow = {
     external_place_id: string | null;
     name: string | null;
+    address: string | null;
     latitude: number | null;
     longitude: number | null;
 };
@@ -102,6 +107,49 @@ type GooglePlaceLite = {
     rating?: number;
     userRatingCount?: number;
 };
+
+/** Canonical + variants for matching Google candidate ids against `importedIds`. */
+export function addGooglePlaceIdVariantsToSet(set: Set<string>, raw: string): void {
+    const c = normalizeCanonicalGooglePlaceId(raw.trim());
+    if (!c) {
+        return;
+    }
+    set.add(c);
+    if (c.startsWith("places/")) {
+        const tail = c.slice("places/".length).trim();
+        if (tail) {
+            set.add(tail);
+        }
+    } else {
+        set.add(`places/${c}`);
+    }
+}
+
+function importedIdsContainsImportedGoogleId(set: Set<string>, pidRaw: string): boolean {
+    const t = pidRaw.trim();
+    if (!t) {
+        return false;
+    }
+    if (set.has(t)) {
+        return true;
+    }
+    const c = normalizeCanonicalGooglePlaceId(t);
+    if (c) {
+        if (set.has(c)) {
+            return true;
+        }
+        if (c.startsWith("places/")) {
+            const tail = c.slice("places/".length).trim();
+            if (tail && set.has(tail)) {
+                return true;
+            }
+        } else if (set.has(`places/${c}`)) {
+            return true;
+        }
+    }
+    const withPrefix = t.startsWith("places/") ? t : `places/${t}`;
+    return set.has(withPrefix);
+}
 
 function citySlugToReadableCity(citySlug: string): string {
     return citySlug.trim().replace(/-/g, " ").replace(/\s+/g, " ").trim();
@@ -208,6 +256,7 @@ function isDuplicateOfExisting(
     name: string,
     lat: number | null,
     lon: number | null,
+    formattedAddress: string | undefined,
     existing: ExistingPlaceRow[],
 ): boolean {
     const g = googlePlaceId.trim();
@@ -215,6 +264,17 @@ function isDuplicateOfExisting(
         const ext = row.external_place_id?.trim();
         if (ext && ext === g) {
             return true;
+        }
+    }
+    const candAddr = formattedAddress?.trim()
+        ? normalizePlaceAddressForDedupe(formattedAddress)
+        : "";
+    if (candAddr.length > 0) {
+        for (const row of existing) {
+            const dbAddr = normalizePlaceAddressForDedupe(row.address ?? null);
+            if (dbAddr.length > 0 && dbAddr === candAddr) {
+                return true;
+            }
         }
     }
     if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
@@ -308,6 +368,13 @@ function cafeneleBlacklistHit(
     }
     if (typeStr.includes("food_court")) {
         return "blacklist:food_court";
+    }
+
+    if (t.some((x) => x.includes("lodging") || x.includes("hotel"))) {
+        return "blacklist:type lodging/hotel";
+    }
+    if (t.some((x) => x.includes("park") || x.includes("campground"))) {
+        return "blacklist:type park";
     }
 
     return null;
@@ -672,7 +739,22 @@ async function fetchSearchTextPage(
     };
 }
 
-/** Nearby: max 20/request, fără nextPageToken — combinăm câte un tip + opțional a doua trecere DISTANCE pentru un singur tip. */
+function getSearchPoints(
+    center: { lat: number; lon: number },
+    radiusM: number,
+): { lat: number; lon: number }[] {
+    if (radiusM <= 12_000) return [center];
+    const offsetDeg = (radiusM / 1000) * 0.005;
+    return [
+        center,
+        { lat: center.lat + offsetDeg, lon: center.lon },
+        { lat: center.lat - offsetDeg, lon: center.lon },
+        { lat: center.lat, lon: center.lon + offsetDeg },
+        { lat: center.lat, lon: center.lon - offsetDeg },
+    ];
+}
+
+/** Nearby: max 20/request — search from multiple points for larger cities. */
 async function collectNearbyRawCandidates(
     apiKey: string,
     center: { lat: number; lon: number },
@@ -680,27 +762,42 @@ async function collectNearbyRawCandidates(
     radiusM: number,
     target: number,
 ): Promise<GooglePlaceLite[]> {
+    const points = getSearchPoints(center, radiusM);
+    const seen = new Set<string>();
     const out: GooglePlaceLite[] = [];
-    for (let i = 0; i < nearbyTypes.length; i++) {
-        const t = nearbyTypes[i]!;
-        if (out.length >= target) break;
-        if (i > 0) {
-            await sleep(DETAILS_DELAY_MS);
-        }
-        const chunk = await fetchSearchNearby(apiKey, center, [t], radiusM, "POPULARITY");
-        for (const p of chunk) {
-            out.push(p);
+
+    for (const pt of points) {
+        for (let i = 0; i < nearbyTypes.length; i++) {
+            const t = nearbyTypes[i]!;
             if (out.length >= target) break;
+            if (out.length > 0) {
+                await sleep(DETAILS_DELAY_MS);
+            }
+            const chunk = await fetchSearchNearby(apiKey, pt, [t], radiusM, "POPULARITY");
+            for (const p of chunk) {
+                const pid = extractPlaceId(p);
+                if (pid && seen.has(pid)) continue;
+                if (pid) seen.add(pid);
+                out.push(p);
+                if (out.length >= target) break;
+            }
         }
+        if (out.length >= target) break;
     }
+
     if (out.length < target && nearbyTypes.length === 1) {
         await sleep(DETAILS_DELAY_MS);
         const chunk = await fetchSearchNearby(apiKey, center, nearbyTypes, radiusM, "DISTANCE");
         for (const p of chunk) {
+            const pid = extractPlaceId(p);
+            if (pid && seen.has(pid)) continue;
+            if (pid) seen.add(pid);
             out.push(p);
             if (out.length >= target) break;
         }
     }
+
+    console.log(`[Google import] nearby collected ${out.length} from ${points.length} search points`);
     return out.slice(0, target);
 }
 
@@ -750,28 +847,52 @@ async function fetchPlaceDetails(
     photos?: { name: string }[];
 }> {
     const url = `${GOOGLE_PLACES_BASE}/${resourceName}`;
-    const res = await fetch(url, {
-        headers: {
-            "X-Goog-Api-Key": apiKey,
-            "X-Goog-FieldMask": DETAILS_FIELD_MASK,
-        },
-    });
-    const raw = await res.text();
-    if (!res.ok) {
-        console.error("[Google import] Place Details HTTP", res.status, raw.slice(0, 400));
-        return {};
+    const maxAttempts = 4;
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const res = await fetch(url, {
+                headers: {
+                    "X-Goog-Api-Key": apiKey,
+                    "X-Goog-FieldMask": DETAILS_FIELD_MASK,
+                },
+            });
+            const raw = await res.text();
+            if (!res.ok) {
+                console.error("[Google import] Place Details HTTP", res.status, raw.slice(0, 400));
+                if (res.status >= 500 && attempt < maxAttempts) {
+                    await sleep(450 * attempt);
+                    continue;
+                }
+                if (res.status === 429 && attempt < maxAttempts) {
+                    await sleep(900 * attempt);
+                    continue;
+                }
+                return {};
+            }
+            try {
+                return JSON.parse(raw) as {
+                    websiteUri?: string;
+                    internationalPhoneNumber?: string;
+                    googleMapsUri?: string;
+                    regularOpeningHours?: { weekdayDescriptions?: string[] };
+                    photos?: { name: string }[];
+                };
+            } catch {
+                return {};
+            }
+        } catch (e) {
+            lastErr = e;
+            if (attempt < maxAttempts) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.warn("[Google import] Place Details fetch retry", attempt, msg);
+                await sleep(550 * attempt);
+                continue;
+            }
+        }
     }
-    try {
-        return JSON.parse(raw) as {
-            websiteUri?: string;
-            internationalPhoneNumber?: string;
-            googleMapsUri?: string;
-            regularOpeningHours?: { weekdayDescriptions?: string[] };
-            photos?: { name: string }[];
-        };
-    } catch {
-        return {};
-    }
+    console.error("[Google import] Place Details failed after retries", lastErr);
+    return {};
 }
 
 export type GoogleImportPreviewMeta = {
@@ -877,13 +998,26 @@ export async function runGoogleImportPreview(options: {
             "r=",
             cfg.radiusM,
         );
-        rawList = await collectNearbyRawCandidates(
+        const nearbyPart = await collectNearbyRawCandidates(
             apiKey,
             cityCenter,
             cfg.nearbyTypes,
             cfg.radiusM,
             rawCandidateTarget,
         );
+        rawList = [...nearbyPart];
+        if (cfg.textKeywords?.length) {
+            const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
+            console.log("[Google import] searchText q=", textQuery.slice(0, 120));
+            const textPart = await collectTextSearchRawCandidates(
+                apiKey,
+                textQuery,
+                cityCenter,
+                cfg.radiusM,
+                rawCandidateTarget,
+            );
+            rawList = [...rawList, ...textPart];
+        }
     } else if (cfg.strategy === "text" && cfg.textKeywords?.length) {
         const textQuery = `${cfg.textKeywords.join(" ")} ${readable} Romania`.replace(/\s+/g, " ").trim();
         console.log("[Google import] searchText q=", textQuery.slice(0, 120));
@@ -984,8 +1118,15 @@ export async function runGoogleImportPreview(options: {
         const lat = p.location?.latitude ?? null;
         const lon = p.location?.longitude ?? null;
         const name = p.displayName?.text?.trim() || "";
-        const likelyDup = isDuplicateOfExisting(pid, name, lat, lon, existing);
-        const already = importedIds.has(pid);
+        const likelyDup = isDuplicateOfExisting(
+            pid,
+            name,
+            lat,
+            lon,
+            p.formattedAddress,
+            existing,
+        );
+        const already = importedIdsContainsImportedGoogleId(importedIds, pid);
         const s = scoreCandidate(p, cityCenter, category_slug, likelyDup);
         return { place: p, score: s, likelyDup, already };
     });
@@ -1019,7 +1160,14 @@ export async function runGoogleImportPreview(options: {
         const name = p.displayName?.text?.trim() || "";
         const lat = p.location?.latitude ?? null;
         const lon = p.location?.longitude ?? null;
-        const likelyDup = isDuplicateOfExisting(pid, name, lat, lon, existing);
+        const likelyDup = isDuplicateOfExisting(
+            pid,
+            name,
+            lat,
+            lon,
+            p.formattedAddress,
+            existing,
+        );
 
         let website: string | null = null;
         let phone: string | null = null;

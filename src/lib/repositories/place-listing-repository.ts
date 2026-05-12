@@ -1,5 +1,6 @@
 import { normalizeListingPlanType } from "@/lib/listing-plan";
 import { supabase } from "@/lib/supabase/client";
+import { formatSupabaseWriteError } from "@/lib/supabase-error";
 import type { PlaceListingRow } from "./types";
 
 export async function getPlaceListing(
@@ -26,7 +27,7 @@ export async function upsertPlaceListing(
     const { error } = await supabase
         .from("place_listings")
         .upsert(payload, { onConflict: "place_id,city_slug,category_slug" });
-    if (error) throw new Error("Failed to upsert place_listings");
+    if (error) throw new Error(formatSupabaseWriteError("place_listings upsert", error));
 }
 
 export async function updatePlaceListingFeatured(

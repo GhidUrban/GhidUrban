@@ -1,4 +1,5 @@
 import { ok } from "@/lib/api-response";
+import { normalizePublicCityImageUrl } from "@/lib/normalize-public-city-image";
 import { getPublicCitiesFromSupabase } from "@/lib/place-repository";
 import { NextResponse } from "next/server";
 
@@ -19,6 +20,7 @@ export async function GET() {
         const cities = supabaseCities.map((city) => ({
             city_slug: city.slug,
             city_name: city.name,
+            city_image: normalizePublicCityImageUrl(city.image),
         }));
 
         return ok("Cities fetched successfully", {

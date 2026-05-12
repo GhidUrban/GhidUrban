@@ -7,7 +7,14 @@ export async function GET(
 ) {
   try {
     const { placeId } = await context.params;
-    const place = await getAdminPlaceByIdFromSupabase(placeId);
+    const url = new URL(request.url);
+    const citySlug = url.searchParams.get("city_slug")?.trim() ?? "";
+    const categorySlug = url.searchParams.get("category_slug")?.trim() ?? "";
+    const scope =
+      citySlug && categorySlug
+        ? { city_slug: citySlug, category_slug: categorySlug }
+        : undefined;
+    const place = await getAdminPlaceByIdFromSupabase(placeId, scope);
 
     if (!place) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { supabase } from "@/lib/supabase/client";
 import { normalizeCanonicalGooglePlaceId } from "./place-repository";
 import type { GoogleMatchReviewAction, GooglePlaceIdListingConflict } from "./types";
@@ -86,23 +87,39 @@ export async function applyGoogleMatchReviewDecision(
         if (conflict) {
             throw new Error("CONFLICT: același google_place_id este deja pe alt loc în această categorie. Rezolvă înainte de matched.");
         }
-        const { error } = await supabase
-            .from("place_google_data").update({ google_match_status: "matched" })
-            .eq("place_id", pid).eq("city_slug", c).eq("category_slug", cat).eq("google_match_status", "review");
+        const { data: updated, error } = await getSupabaseAdmin()
+            .from("place_google_data")
+            .update({ google_match_status: "matched" })
+            .eq("place_id", pid)
+            .eq("city_slug", c)
+            .eq("category_slug", cat)
+            .eq("google_match_status", "review")
+            .select("place_id");
         if (error) throw new Error("Failed to update google match status");
+        if (!updated?.length) {
+            throw new Error(
+                "Nu s-a actualizat niciun rând ca matched (lipsește rândul în review sau problema de permisiuni).",
+            );
+        }
         return;
     }
 
     if (action === "clear_match") {
-        const { error } = await supabase
+        const { data: updated, error } = await getSupabaseAdmin()
             .from("place_google_data")
             .update({
                 google_place_id: null, google_maps_uri: null, google_photo_uri: null,
                 google_photo_name: null, google_match_score: null,
                 google_hours_raw: null, google_hours_text: null,
-                google_match_status: "review",
+                google_match_status: "cleared",
             })
-            .eq("place_id", pid).eq("city_slug", c).eq("category_slug", cat).eq("google_match_status", "review");
+            .eq("place_id", pid).eq("city_slug", c).eq("category_slug", cat).eq("google_match_status", "review")
+            .select("place_id");
         if (error) throw new Error("Failed to clear google match fields");
+        if (!updated?.length) {
+            throw new Error(
+                "Nu s-a golit nicio înregistrare (rândul nu era în stare review sau problema de permisiuni).",
+            );
+        }
     }
 }

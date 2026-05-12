@@ -12,15 +12,43 @@ import {
 } from "./types";
 
 export async function getPublicCitiesFromSupabase(): Promise<SupabaseCity[]> {
-    const { data, error } = await supabase
+    const primary = await supabase
         .from("cities")
         .select("slug, name, image")
         .eq("is_active", true)
         .order("sort_order", { ascending: true })
         .order("name", { ascending: true });
 
-    if (error) throw error;
-    return data ?? [];
+    if (!primary.error) {
+        return (primary.data ?? []) as SupabaseCity[];
+    }
+
+    const msg = primary.error.message ?? "";
+    const missingMeta =
+        primary.error.code === "42703" ||
+        /is_active|sort_order/i.test(msg);
+
+    if (missingMeta) {
+        const legacy = await supabase
+            .from("cities")
+            .select("slug, name, image")
+            .order("name", { ascending: true });
+        if (!legacy.error) {
+            return (legacy.data ?? []) as SupabaseCity[];
+        }
+        const msg2 = legacy.error.message ?? "";
+        if (legacy.error.code === "42703" && /image/i.test(msg2)) {
+            const minimal = await supabase.from("cities").select("slug, name").order("name", { ascending: true });
+            if (minimal.error) throw minimal.error;
+            return ((minimal.data ?? []) as { slug: string; name: string }[]).map((r) => ({
+                ...r,
+                image: null,
+            }));
+        }
+        throw legacy.error;
+    }
+
+    throw primary.error;
 }
 
 export async function getAllCitySlugs(): Promise<string[]> {
@@ -212,7 +240,6 @@ export async function createCityWithStandardCategories(
 
     const parsedCoords = parseCityCreateCoords(coords);
     const db = supabaseClientForCityCreate();
-    const cityImage = `/images/places/${city_slug}/city.jpg`;
 
     const { data: existingRows, error: cityLookupErr } = await db
         .from("cities").select("slug, latitude, longitude").eq("slug", city_slug).limit(1);
@@ -237,7 +264,7 @@ export async function createCityWithStandardCategories(
     if (!parsedCoords) throw new Error("Lipsește latitude / longitude.");
 
     const { error: insertCityErr } = await db.from("cities").insert([{
-        slug: city_slug, name: trimmedName, image: cityImage,
+        slug: city_slug, name: trimmedName, image: null,
         latitude: parsedCoords.latitude, longitude: parsedCoords.longitude,
     }]);
     if (insertCityErr) throw new Error("Nu s-a putut crea orașul.");

@@ -25,7 +25,7 @@ const supabase = createClient(url, key, { auth: { persistSession: false, autoRef
 async function putCity(row: {
     slug: string;
     name: string;
-    image: string;
+    image: string | null;
     latitude: number;
     longitude: number;
     is_active: boolean;
@@ -42,7 +42,6 @@ async function putCity(row: {
             .from("cities")
             .update({
                 name: row.name,
-                image: row.image,
                 latitude: row.latitude,
                 longitude: row.longitude,
                 is_active: row.is_active,
@@ -82,12 +81,11 @@ async function main() {
 
     for (let i = 0; i < RO_MAJOR_CITIES.length; i++) {
         const c = RO_MAJOR_CITIES[i]!;
-        const image = `/images/places/${c.slug}/city.jpg`;
         try {
             await putCity({
                 slug: c.slug,
                 name: c.name,
-                image,
+                image: null,
                 latitude: c.latitude,
                 longitude: c.longitude,
                 is_active: true,

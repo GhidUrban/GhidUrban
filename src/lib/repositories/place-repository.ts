@@ -1,5 +1,6 @@
 import type { Place } from "@/data/places";
 import { normalizeListingPlanType, resolveListing } from "@/lib/listing-plan";
+import { formatSupabaseWriteError } from "@/lib/supabase-error";
 import { supabase } from "@/lib/supabase/client";
 import type {
     AdminSupabasePlaceDetails,
@@ -177,7 +178,7 @@ export function supabasePlaceToPlace(p: SupabasePlace): Place {
         featured, featured_until, activeFeatured, activePromoted, listingTierRank,
         latitude: p.latitude, longitude: p.longitude,
         google_match_status: gd?.google_match_status ?? null,
-        google_photo_uri: gd?.google_photo_uri ?? null,
+        google_photo_uri: p.image_storage_path ? null : (gd?.google_photo_uri ?? null),
         google_hours_raw: gd?.google_hours_raw ?? null,
         image_gallery: (() => {
             const shots = (p.place_photos ?? [])
@@ -267,7 +268,7 @@ export async function getPlacesSearchIndexRowsFromSupabase(
             plan_type: li?.plan_type ?? null,
             plan_expires_at: li?.plan_expires_at ?? null,
             google_match_status: gd?.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? null,
+            google_photo_uri: r.image_storage_path ? null : (gd?.google_photo_uri ?? null),
         };
     });
 }
@@ -346,9 +347,59 @@ export async function getPopularPlacesFromSupabase(
             image: r.image_storage_path ?? r.image,
             rating: r.rating,
             google_match_status: gd?.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? null,
+            google_photo_uri: r.image_storage_path ? null : (gd?.google_photo_uri ?? null),
         };
     });
+}
+
+export async function getTopPlacesPerCategoryForCity(
+    citySlug: string,
+    categorySlugs: string[],
+    limitPerCategory: number,
+): Promise<Map<string, PopularPlaceRow[]>> {
+    if (categorySlugs.length === 0) return new Map();
+
+    const perCatResults = await Promise.all(
+        categorySlugs.map(async (catSlug) => {
+            const { data, error } = await supabase
+                .from("places")
+                .select(
+                    "place_id, city_slug, category_slug, name, image, image_storage_path, rating",
+                )
+                .eq("status", "available")
+                .eq("city_slug", citySlug)
+                .eq("category_slug", catSlug)
+                .order("rating", { ascending: false, nullsFirst: false })
+                .limit(limitPerCategory);
+            if (error) return { catSlug, rows: [] as NonNullable<typeof data> };
+            return { catSlug, rows: data ?? [] };
+        }),
+    );
+
+    const allRows = perCatResults.flatMap((r) => r.rows) as Array<{
+        place_id: string; city_slug: string; category_slug: string; name: string;
+        image: string | null; image_storage_path?: string | null; rating: number | null;
+    }>;
+    const keys = allRows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
+    const gdMap = keys.length > 0 ? await fetchPlaceGoogleDataMap(keys) : new Map();
+
+    const grouped = new Map<string, PopularPlaceRow[]>();
+    for (const r of allRows) {
+        const catPlaces = grouped.get(r.category_slug) ?? [];
+        const gd = gdMap.get(placeJoinKey(r));
+        catPlaces.push({
+            place_id: r.place_id,
+            city_slug: r.city_slug,
+            category_slug: r.category_slug,
+            name: r.name,
+            image: r.image_storage_path ?? r.image,
+            rating: r.rating ?? 0,
+            google_match_status: gd?.google_match_status ?? null,
+            google_photo_uri: r.image_storage_path ? null : (gd?.google_photo_uri ?? null),
+        });
+        grouped.set(r.category_slug, catPlaces);
+    }
+    return grouped;
 }
 
 export async function getAllPlacesForAdminFromSupabase(): Promise<AdminSupabasePlaceRow[]> {
@@ -383,18 +434,50 @@ export async function getAllPlacesForAdminFromSupabase(): Promise<AdminSupabaseP
 
 export async function getAdminPlaceByIdFromSupabase(
     placeId: string,
+    scope?: { city_slug: string; category_slug: string },
 ): Promise<AdminSupabasePlaceDetails | null> {
-    const { data, error } = await supabase
+    const pid = placeId?.trim();
+    if (!pid) return null;
+
+    let q = supabase
         .from("places")
-        .select("place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, status")
-        .eq("place_id", placeId).single();
+        .select(
+            "place_id, city_slug, category_slug, name, description, address, schedule, image, image_storage_path, rating, phone, website, maps_url, status",
+        )
+        .eq("place_id", pid);
+    const cs = scope?.city_slug?.trim();
+    const cat = scope?.category_slug?.trim();
+    if (cs && cat) {
+        q = q.eq("city_slug", cs).eq("category_slug", cat);
+    }
+    const { data, error } = await q;
     if (error) return null;
-    const row = data as {
-        place_id: string; city_slug: string; category_slug: string; name: string;
-        description: string | null; address: string | null; schedule: string | null;
-        image: string | null; image_storage_path?: string | null; rating: number | null;
-        phone: string | null; website: string | null; maps_url: string | null; status: string;
-    };
+    const rows = (data ?? []) as Array<{
+        place_id: string;
+        city_slug: string;
+        category_slug: string;
+        name: string;
+        description: string | null;
+        address: string | null;
+        schedule: string | null;
+        image: string | null;
+        image_storage_path?: string | null;
+        rating: number | null;
+        phone: string | null;
+        website: string | null;
+        maps_url: string | null;
+        status: string;
+    }>;
+    if (rows.length === 0) return null;
+    if (rows.length > 1) {
+        console.warn(
+            "[admin] Mai multe rânduri pentru același place_id; folosește ?city_slug=&category_slug= în URL edit.",
+            pid,
+            rows.length,
+        );
+        return null;
+    }
+    const row = rows[0]!;
     const key = { place_id: row.place_id, city_slug: row.city_slug, category_slug: row.category_slug };
     const liMap = await fetchPlaceListingsMap([key]);
     const li = liMap.get(placeJoinKey(key));
@@ -535,7 +618,7 @@ export async function createPlaceInSupabase(
         status: place.status ?? "available",
     };
     const { error } = await supabase.from("places").insert([coreRow]);
-    if (error) throw new Error("Failed to create place");
+    if (error) throw new Error(formatSupabaseWriteError("places insert", error));
 
     await upsertPlaceListing({
         place_id: place.place_id,
@@ -575,7 +658,7 @@ export async function updatePlaceInSupabase(place: SupabasePlaceMutationInput): 
     const { error } = await supabase
         .from("places").update(corePayload)
         .eq("place_id", place.place_id).eq("city_slug", place.city_slug).eq("category_slug", place.category_slug);
-    if (error) throw new Error("Failed to update place");
+    if (error) throw new Error(formatSupabaseWriteError("places update", error));
 
     const listingPayload: Record<string, unknown> = {
         place_id: place.place_id, city_slug: place.city_slug, category_slug: place.category_slug,

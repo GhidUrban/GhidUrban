@@ -87,7 +87,7 @@ export async function getNearbyRecommendedPlacesFromSupabase(
             rating: raw.rating,
             maps_url: raw.maps_url, distance_km, active_featured, active_promoted, listing_tier_rank,
             google_match_status: gd?.google_match_status ?? null,
-            google_photo_uri: gd?.google_photo_uri ?? null,
+            google_photo_uri: raw.image_storage_path ? null : (gd?.google_photo_uri ?? null),
         });
     }
     return out;

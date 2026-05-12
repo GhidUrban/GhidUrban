@@ -60,7 +60,7 @@ export function PublicPlaceCard({
     "group block h-full rounded-2xl outline-none transition-opacity duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 active:opacity-95";
 
   const cardToneClass =
-    "h-full cursor-pointer overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm transition-shadow duration-200 ease-out md:group-hover:shadow";
+    "h-full cursor-pointer overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition-shadow duration-200 ease-out md:group-hover:shadow";
 
   const cardInner = (
     <div className={cardToneClass}>
@@ -97,7 +97,7 @@ export function PublicPlaceCard({
           </div>
         ) : null}
         <h3
-          className="truncate text-[13px] font-semibold leading-snug text-gray-900 sm:text-sm"
+          className="truncate text-[13px] font-semibold leading-snug text-slate-900 sm:text-sm"
         >
           {titleContent ?? place.name}
         </h3>
@@ -109,7 +109,7 @@ export function PublicPlaceCard({
         >
           {ratingText ?? "0.0 ★"}
         </p>
-        <p className="mt-0.5 truncate text-[11px] leading-snug text-gray-400 capitalize">
+        <p className="mt-0.5 truncate text-[11px] leading-snug text-slate-400 capitalize">
           {cityLabel}
         </p>
         {statusLabel ? (

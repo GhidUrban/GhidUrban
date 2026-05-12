@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase/client";
+import { formatSupabaseWriteError } from "@/lib/supabase-error";
 import type { PlaceGoogleDataRow } from "./types";
 
 export async function getPlaceGoogleData(
@@ -21,7 +22,7 @@ export async function upsertPlaceGoogleData(
     const { error } = await supabase
         .from("place_google_data")
         .upsert(row, { onConflict: "place_id,city_slug,category_slug" });
-    if (error) throw new Error("Failed to upsert place_google_data");
+    if (error) throw new Error(formatSupabaseWriteError("place_google_data upsert", error));
 }
 
 export async function deletePlaceGoogleData(

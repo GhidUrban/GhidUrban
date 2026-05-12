@@ -85,8 +85,17 @@ export default function AdminImportPage() {
     const [isImporting, setIsImporting] = useState(false);
     const [importError, setImportError] = useState("");
     const [importSummary, setImportSummary] = useState<
-        null | { inserted: number; merged: number; skipped: number }
+        null | {
+            inserted: number;
+            merged: number;
+            skipped: number;
+            server_message: string;
+            google_photos_max?: number;
+            inserts_with_photo_ok?: number;
+            inserts_photo_failed?: number;
+        }
     >(null);
+    const [uploadUpTo3Photos, setUploadUpTo3Photos] = useState(false);
     const [resultLimit, setResultLimit] = useState<20 | 50 | 100>(50);
     const [adminCityRows, setAdminCityRows] = useState<AdminCitySelectRow[]>([]);
     const [googleCoverageRows, setGoogleCoverageRows] = useState<GoogleImportCoverageRow[] | null>(
@@ -266,26 +275,47 @@ export default function AdminImportPage() {
                     city_slug: citySlug,
                     category_slug: categorySlug,
                     items: selectedItems,
+                    upload_up_to_3_photos: uploadUpTo3Photos,
                 }),
             });
 
             const json = (await response.json()) as {
                 success?: boolean;
                 message?: string;
-                data?: { inserted?: number; merged?: number; skipped?: number };
+                data?: {
+                    inserted?: number;
+                    merged?: number;
+                    skipped?: number;
+                    google_photos_max?: number;
+                    inserts_with_photo_ok?: number;
+                    inserts_photo_failed?: number;
+                    code?: string;
+                    detail?: string;
+                };
             };
 
             if (!response.ok || !json.success) {
-                setImportError(json.message || "Importul a eșuat.");
+                let err = json.message || "Importul a eșuat.";
+                if (response.status === 401) {
+                    err = json.message || "Sesiunea admin a expirat. Intră din nou.";
+                }
+                setImportError(err);
                 return;
             }
 
             const inserted = json.data?.inserted ?? 0;
             const merged = json.data?.merged ?? 0;
             const skipped = json.data?.skipped ?? 0;
-            setImportSummary({ inserted, merged, skipped });
+            setImportSummary({
+                inserted,
+                merged,
+                skipped,
+                server_message: json.message || "",
+                google_photos_max: json.data?.google_photos_max,
+                inserts_with_photo_ok: json.data?.inserts_with_photo_ok,
+                inserts_photo_failed: json.data?.inserts_photo_failed,
+            });
             setSelectedIds(new Set());
-            // Google preview images are temporary and are not persisted; clear list so thumbnails disappear after save.
             setResults(null);
             setGoogleMeta(null);
         } catch {
@@ -713,6 +743,20 @@ export default function AdminImportPage() {
                         </ul>
 
                         <div className="border-t border-gray-200 pt-4">
+                            <label className="mb-2 flex cursor-pointer items-start gap-2 text-sm text-gray-800">
+                                <input
+                                    type="checkbox"
+                                    checked={uploadUpTo3Photos}
+                                    onChange={(e) => setUploadUpTo3Photos(e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span>
+                                    Încarcă <strong className="font-medium">până la 3 poze</strong> din Google în
+                                    Supabase Storage. Debifat: cel mult{" "}
+                                    <strong className="font-medium">1</strong> poză pentru fiecare loc nou (cu Google
+                                    ID).
+                                </span>
+                            </label>
                             <button
                                 type="button"
                                 onClick={handleImportSelected}
@@ -729,16 +773,128 @@ export default function AdminImportPage() {
                                 </div>
                             ) : null}
                             {importSummary ? (
-                                <p className="mt-3 text-sm text-green-800">
-                                    Import finalizat: {importSummary.inserted} adăugate,{" "}
-                                    {importSummary.merged} actualizate (același Google în categorie),{" "}
-                                    {importSummary.skipped} sărite.
-                                </p>
+                                <div className="mt-3 space-y-2 text-sm">
+                                    <p className="text-green-900">{importSummary.server_message}</p>
+                                    {(importSummary.inserts_photo_failed ?? 0) > 0 ? (
+                                        <p className="text-amber-800">
+                                            Unele locuri noi sunt salvate dar pozele nu au putut fi încărcate pentru
+                                            toate; verifică cheia Google și bucket-ul Storage în mediu.
+                                        </p>
+                                    ) : null}
+                                </div>
                             ) : null}
                         </div>
                     </div>
                 ) : null}
             </div>
+
+            {/* --- Repara poze lipsa --- */}
+            <FixMissingPhotosSection citiesForSelect={adminCityRows} />
         </main>
+    );
+}
+
+/* ------------------------------------------------------------------ */
+/* Sectiune separata: Repara poze lipsa                               */
+/* ------------------------------------------------------------------ */
+
+function FixMissingPhotosSection({ citiesForSelect }: { citiesForSelect: AdminCitySelectRow[] }) {
+    const [citySlug, setCitySlug] = useState("");
+    const [maxPhotos, setMaxPhotos] = useState(1);
+    const [running, setRunning] = useState(false);
+    const [result, setResult] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleFix = useCallback(async () => {
+        setRunning(true);
+        setResult(null);
+        setError(null);
+        try {
+            const res = await fetch("/api/admin/fix-missing-photos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    city_slug: citySlug || undefined,
+                    max_photos: maxPhotos,
+                }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                setError(json.message ?? "Eroare necunoscuta.");
+            } else {
+                setResult(json.message);
+            }
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Eroare de rețea.");
+        } finally {
+            setRunning(false);
+        }
+    }, [citySlug, maxPhotos]);
+
+    return (
+        <div className="mt-10 rounded-lg border border-amber-200 bg-amber-50 p-5">
+            <h2 className="mb-2 text-base font-semibold text-amber-900">Repara poze lipsa</h2>
+            <p className="mb-4 text-sm text-amber-800">
+                Descarca poze din Google Places API pentru locurile care nu au imagine salvata in
+                Supabase Storage (image_storage_path = null) dar au Google match.
+            </p>
+
+            <div className="flex flex-wrap items-end gap-3">
+                <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">
+                        Oras (optional)
+                    </label>
+                    <select
+                        value={citySlug}
+                        onChange={(e) => setCitySlug(e.target.value)}
+                        className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                    >
+                        <option value="">Toate orasele</option>
+                        {citiesForSelect.map((c) => (
+                            <option key={c.slug} value={c.slug}>
+                                {c.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="mb-1 block text-xs font-medium text-gray-700">
+                        Poze / loc
+                    </label>
+                    <select
+                        value={maxPhotos}
+                        onChange={(e) => setMaxPhotos(Number(e.target.value))}
+                        className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                    >
+                        <option value={1}>1</option>
+                        <option value={2}>2</option>
+                        <option value={3}>3</option>
+                    </select>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleFix}
+                    disabled={running}
+                    className={`h-9 rounded-md px-4 text-sm font-medium text-white ${
+                        running ? "bg-gray-400" : "bg-amber-600 hover:bg-amber-700"
+                    }`}
+                >
+                    {running ? "Se repara..." : "Repara pozele"}
+                </button>
+            </div>
+
+            {error ? (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {error}
+                </div>
+            ) : null}
+            {result ? (
+                <div className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                    {result}
+                </div>
+            ) : null}
+        </div>
     );
 }

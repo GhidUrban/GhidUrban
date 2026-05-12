@@ -4,6 +4,7 @@ import {
     overpassLinesForFilter,
 } from "@/lib/import-categories";
 import { resolveCityCenterCoordinates } from "@/lib/place-repository";
+import { normalizePlaceAddressForDedupe } from "@/lib/repositories/place-repository";
 import { supabase } from "@/lib/supabase/client";
 
 const ALLOWED_LIMITS = [20, 50, 100] as const;
@@ -262,20 +263,26 @@ ${queryParts.join("\n")}
       }
     }
 
-    const { data: nameRows, error: nameError } = await supabase
+    const { data: addrNameRows, error: addrNameError } = await supabase
       .from("places")
-      .select("name")
+      .select("name, address")
       .eq("city_slug", city_slug)
       .eq("category_slug", category_slug);
 
     const nameLowerSet = new Set<string>();
-    if (nameError) {
-      console.error("Import search Supabase names:", nameError);
+    const addressNormSet = new Set<string>();
+    if (addrNameError) {
+      console.error("Import search Supabase places name/address:", addrNameError);
     } else {
-      for (const row of nameRows ?? []) {
-        const n = (row as { name: string | null }).name?.trim().toLowerCase();
+      for (const row of addrNameRows ?? []) {
+        const r = row as { name: string | null; address: string | null };
+        const n = r.name?.trim().toLowerCase();
         if (n) {
           nameLowerSet.add(n);
+        }
+        const a = normalizePlaceAddressForDedupe(r.address ?? null);
+        if (a) {
+          addressNormSet.add(a);
         }
       }
     }
@@ -286,9 +293,13 @@ ${queryParts.join("\n")}
       const byName = Boolean(
         r.name?.trim() && nameLowerSet.has(r.name.trim().toLowerCase())
       );
+      const byAddress = Boolean(
+        r.address?.trim() &&
+          addressNormSet.has(normalizePlaceAddressForDedupe(r.address))
+      );
       return {
         ...r,
-        already_imported: byExternal || byName,
+        already_imported: byExternal || byName || byAddress,
       };
     });
 

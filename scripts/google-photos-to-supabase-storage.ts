@@ -74,15 +74,39 @@ async function fetchPhotoNamesFromDetails(resourceName: string, max: number): Pr
     return names;
 }
 
+function sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+}
+
 async function fetchPhotoBytes(photoName: string): Promise<Buffer | null> {
     const u = `${PLACES_BASE}/${photoName}/media?maxHeightPx=1200`;
-    const res = await fetch(u, { headers: { "X-Goog-Api-Key": GOOGLE_KEY! }, redirect: "follow" });
-    if (!res.ok) {
-        console.warn("Media failed", photoName.slice(0, 40), res.status);
-        return null;
+    const maxAttempts = 4;
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const res = await fetch(u, { headers: { "X-Goog-Api-Key": GOOGLE_KEY! }, redirect: "follow" });
+            if (!res.ok) {
+                console.warn("Media failed", photoName.slice(0, 40), res.status);
+                if ((res.status >= 500 || res.status === 429) && attempt < maxAttempts) {
+                    await sleep(450 * attempt);
+                    continue;
+                }
+                return null;
+            }
+            const buf = Buffer.from(await res.arrayBuffer());
+            return buf.length > 0 ? buf : null;
+        } catch (e) {
+            lastErr = e;
+            if (attempt < maxAttempts) {
+                const msg = e instanceof Error ? e.message : String(e);
+                console.warn("Media fetch retry", attempt, photoName.slice(0, 40), msg);
+                await sleep(550 * attempt);
+                continue;
+            }
+        }
     }
-    const buf = Buffer.from(await res.arrayBuffer());
-    return buf.length > 0 ? buf : null;
+    console.warn("Media gave up after retries", photoName.slice(0, 40), lastErr);
+    return null;
 }
 
 type Row = {
@@ -156,6 +180,7 @@ async function main() {
     const statsPath = path.join(process.cwd(), "scripts", ".google-photo-import-stats.json");
 
     for (const row of work) {
+        try {
         const gid = row.google_place_id?.trim();
         if (!gid) {
             skipped++;
@@ -247,6 +272,11 @@ async function main() {
             fs.writeFileSync(statsPath, JSON.stringify(stats, null, 2), "utf8");
         } catch {
             /* ignore */
+        }
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn("Row error, skipping", row.city_slug, row.category_slug, row.place_id, msg);
+            skipped++;
         }
     }
 

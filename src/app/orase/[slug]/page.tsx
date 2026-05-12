@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { OraseCategorySearchGrid } from "@/components/OraseCategorySearchGrid";
+import { CityCategoryCarousels } from "@/components/CityCategoryCarousels";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
 import { apiGet } from "@/lib/internal-api";
+import { getTopPlacesPerCategoryForCity } from "@/lib/place-repository";
 import { slugToTitle } from "@/lib/slug";
 
 type CityPageProps = {
@@ -54,10 +55,24 @@ export default async function CityPage({ params }: CityPageProps) {
 
     const cityName = slugToTitle(slug);
     const categories = categoriesResponse.data.categories;
+    const categorySlugs = categories.map((c) => c.category_slug);
+
+    let placesByCategory: Record<string, Awaited<ReturnType<typeof getTopPlacesPerCategoryForCity>> extends Map<string, infer V> ? V : never> = {};
+    try {
+        const grouped = await getTopPlacesPerCategoryForCity(slug, categorySlugs, 5);
+        placesByCategory = Object.fromEntries(grouped);
+    } catch (e) {
+        console.error("[CityPage] Failed to load top places:", e);
+    }
+
+    const categoryInfos = categories.map((c) => ({
+        slug: c.category_slug,
+        name: c.category_name,
+    }));
 
     return (
         <main className="min-h-screen bg-gray-100 py-4">
-            <div className="mx-auto max-w-4xl px-4">
+            <div className="mx-auto max-w-5xl px-4">
                 <OraseFlowPageHeader
                     items={[
                         { label: "Orașe", href: "/orase" },
@@ -67,7 +82,11 @@ export default async function CityPage({ params }: CityPageProps) {
                     titleClassName="max-w-2xl"
                 />
 
-                <OraseCategorySearchGrid citySlug={slug} categories={categories} />
+                <CityCategoryCarousels
+                    citySlug={slug}
+                    categories={categoryInfos}
+                    placesByCategory={placesByCategory}
+                />
             </div>
         </main>
     );

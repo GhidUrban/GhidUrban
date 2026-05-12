@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 import { AdminImageFieldThumb } from "@/components/AdminImageFieldThumb";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
@@ -132,10 +132,13 @@ const emptyQuickImport: QuickImportDraft = {
     maps_url: "",
 };
 
-export default function EditAdminPlacePage() {
+function EditAdminPlacePageInner() {
     const params = useParams<{ placeId: string }>();
+    const searchParams = useSearchParams();
     const router = useRouter();
     const placeId = typeof params.placeId === "string" ? params.placeId : "";
+    const cityFromUrl = searchParams.get("city_slug")?.trim() ?? "";
+    const categoryFromUrl = searchParams.get("category_slug")?.trim() ?? "";
 
     const [formData, setFormData] = useState<EditPlaceFormData>(initialFormData);
     const [quickImport, setQuickImport] = useState<QuickImportDraft>(emptyQuickImport);
@@ -220,7 +223,13 @@ export default function EditAdminPlacePage() {
             }
 
             try {
-                const response = await fetch(`/api/admin/places/${encodeURIComponent(placeId)}`);
+                const qs = new URLSearchParams();
+                if (cityFromUrl) qs.set("city_slug", cityFromUrl);
+                if (categoryFromUrl) qs.set("category_slug", categoryFromUrl);
+                const q = qs.toString();
+                const response = await fetch(
+                    `/api/admin/places/${encodeURIComponent(placeId)}${q ? `?${q}` : ""}`,
+                );
                 const json = (await response.json()) as AdminPlaceDetailsResponse;
 
                 if (!response.ok || !json.success || !json.data) {
@@ -261,7 +270,7 @@ export default function EditAdminPlacePage() {
         }
 
         loadPlace();
-    }, [placeId]);
+    }, [placeId, cityFromUrl, categoryFromUrl]);
 
     function handleChange(
         event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -819,5 +828,19 @@ export default function EditAdminPlacePage() {
                 </div>
             </div>
         </main>
+    );
+}
+
+export default function EditAdminPlacePage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-gray-100 px-4 py-8">
+                    <p className="text-gray-600">Se încarcă…</p>
+                </main>
+            }
+        >
+            <EditAdminPlacePageInner />
+        </Suspense>
     );
 }

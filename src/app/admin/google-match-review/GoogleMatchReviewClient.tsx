@@ -220,7 +220,7 @@ export default function GoogleMatchReviewClient() {
                         <h1 className="text-2xl font-semibold text-gray-900">Review Google (sync)</h1>
                         <p className="mt-1 text-sm text-gray-600">
                             Locuri cu <code className="rounded bg-gray-200 px-1">google_match_status = review</code>
-                            . Aprobă ca matched sau golește legătura Google.
+                            . Aprobă ca matched sau golește legătura Google; golește pune status cleared și iese din coadă.
                         </p>
                         <p className="mt-1 text-xs text-gray-500">
                             Tastatură (fără focus în câmp): săgeți sus/jos,{" "}
@@ -347,6 +347,35 @@ export default function GoogleMatchReviewClient() {
                     </button>
                 </div>
 
+                <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gray-200 pb-3 text-xs text-gray-600">
+                    {search.trim() ? (
+                        <span>
+                            <span className="font-medium text-gray-700">Căutare:</span> „{search.trim()}”
+                        </span>
+                    ) : null}
+                    {selectedCity ? (
+                        <span>
+                            <span className="font-medium text-gray-700">Oraș:</span> {selectedCity}
+                        </span>
+                    ) : null}
+                    {selectedCategory ? (
+                        <span>
+                            <span className="font-medium text-gray-700">Categorie:</span> {selectedCategory}
+                        </span>
+                    ) : null}
+                    {missingStorageOnly ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-950">
+                            Fără poză în Storage
+                        </span>
+                    ) : null}
+                    {!search.trim() &&
+                    !selectedCity &&
+                    !selectedCategory &&
+                    !missingStorageOnly ? (
+                        <span className="text-gray-400">Toate înregistrările în review (fără filtre).</span>
+                    ) : null}
+                </div>
+
                 {loading ? (
                     <p className="text-sm text-gray-600">Se încarcă…</p>
                 ) : listError ? (
@@ -403,7 +432,7 @@ export default function GoogleMatchReviewClient() {
                                                         </p>
                                                     ) : null}
                                                     <Link
-                                                        href={`/admin/edit/${row.conflict.conflicting_place_id}`}
+                                                        href={`/admin/edit/${encodeURIComponent(row.conflict.conflicting_place_id)}?city_slug=${encodeURIComponent(row.conflict.conflicting_city_slug)}&category_slug=${encodeURIComponent(row.conflict.conflicting_category_slug)}`}
                                                         className="mt-2 inline-block text-xs font-medium text-red-950 underline"
                                                     >
                                                         Deschide locul canonic în editare
@@ -455,7 +484,7 @@ export default function GoogleMatchReviewClient() {
                                         </div>
                                         <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
                                             <Link
-                                                href={`/admin/edit/${row.place_id}`}
+                                                href={`/admin/edit/${encodeURIComponent(row.place_id)}?city_slug=${encodeURIComponent(row.city_slug)}&category_slug=${encodeURIComponent(row.category_slug)}`}
                                                 className="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                                             >
                                                 Editează loc

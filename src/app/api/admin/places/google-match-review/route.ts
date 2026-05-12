@@ -106,7 +106,7 @@ export async function PATCH(req: Request) {
         const message =
             actionRaw === "matched"
                 ? "Marcat ca matched."
-                : "Datele Google au fost golite; rămâne în review.";
+                : "Legătura Google a fost golită; rândul iese din coada de review.";
         return ok(message, { place_id, city_slug, category_slug, action: actionRaw });
     } catch (e) {
         const message = e instanceof Error ? e.message : "Eroare la actualizare.";

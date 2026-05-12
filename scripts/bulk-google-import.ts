@@ -2,8 +2,11 @@
  * Bulk import Google Places into Supabase (≥ preview target per run).
  *
  * Usage:
- *   npx tsx scripts/bulk-google-import.ts --city=bucuresti --category=restaurante --target=100 --dry-run
- *   npx tsx scripts/bulk-google-import.ts --city=cluj-napoca --category=cafenele --target=50
+ *   npx tsx scripts/bulk-google-import.ts --city=bucuresti --category=restaurante --dry-run
+ *   npx tsx scripts/bulk-google-import.ts --city=cluj-napoca --all-categories
+ *   npx tsx scripts/bulk-google-import.ts --city=iasi --no-photos
+ *
+ * Default: --target=60 per category; after each insert uploads up to 3 photos to Storage when available.
  *
  * Env: GOOGLE_MAPS_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
@@ -16,9 +19,14 @@ import {
     GOOGLE_IMPORT_SUPPORTED_CATEGORIES,
     type GoogleImportSupportedCategory,
 } from "../src/lib/google-import-categories";
-import { runGoogleImportPreview, type GoogleImportPreviewRow } from "../src/lib/google-import";
-import { placeIdSlugFromName } from "../src/lib/slug";
+import {
+    addGooglePlaceIdVariantsToSet,
+    runGoogleImportPreview,
+    type GoogleImportPreviewRow,
+} from "../src/lib/google-import";
 import { PLACE_IMAGE_PLACEHOLDER } from "../src/lib/place-image";
+import { placeIdSlugFromName } from "../src/lib/slug";
+import { uploadGooglePhotosForPlace } from "../src/lib/google-place-photos-storage";
 
 dotenv.config({ path: ".env.local" });
 
@@ -201,43 +209,27 @@ async function insertRow(sb: SupabaseClient, row: GoogleImportPreviewRow, place_
     if (e3) throw e3;
 }
 
-async function main() {
-    const city = argVal("--city")?.trim();
-    const categoryRaw = argVal("--category")?.trim();
-    const target = Math.min(200, Math.max(1, parseIntArg("--target", 100)));
-    const dry = hasFlag("--dry-run");
+function sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
+}
 
-    if (!city || !categoryRaw) {
-        console.error("Required: --city=slug --category=slug (one of google-import categories)");
-        process.exit(1);
-    }
-    if (!GOOGLE_IMPORT_SUPPORTED_CATEGORIES.includes(categoryRaw as GoogleImportSupportedCategory)) {
-        console.error("Invalid category. Use:", GOOGLE_IMPORT_SUPPORTED_CATEGORIES.join(", "));
-        process.exit(1);
-    }
-    const category_slug = categoryRaw as GoogleImportSupportedCategory;
-
-    const sb = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-
-    const { data: cityRow, error: cErr } = await sb
-        .from("cities")
-        .select("latitude, longitude")
-        .eq("slug", city)
-        .maybeSingle();
-    if (cErr || !cityRow) {
-        console.error("City not found:", city);
-        process.exit(1);
-    }
-    const la = Number((cityRow as { latitude: number | null }).latitude);
-    const lo = Number((cityRow as { longitude: number | null }).longitude);
-    if (!Number.isFinite(la) || !Number.isFinite(lo)) {
-        console.error("City missing coordinates:", city);
-        process.exit(1);
-    }
+async function runBulkForCategory(params: {
+    sb: SupabaseClient;
+    city: string;
+    la: number;
+    lo: number;
+    category_slug: GoogleImportSupportedCategory;
+    target: number;
+    dry: boolean;
+    syncPhotos: boolean;
+    maxPhotos: number;
+    photoDelayMs: number;
+}): Promise<void> {
+    const { sb, city, la, lo, category_slug, target, dry, syncPhotos, maxPhotos, photoDelayMs } = params;
 
     const { data: placeRows } = await sb
         .from("places")
-        .select("place_id, name, latitude, longitude")
+        .select("place_id, name, address, latitude, longitude")
         .eq("city_slug", city)
         .eq("category_slug", category_slug);
 
@@ -253,9 +245,18 @@ async function main() {
         extByPid.set(r.place_id, r.external_place_id ?? null);
     }
 
-    const existing = ((placeRows ?? []) as { place_id: string; name: string | null; latitude: number | null; longitude: number | null }[]).map((p) => ({
+    const existing = (
+        (placeRows ?? []) as {
+            place_id: string;
+            name: string | null;
+            address: string | null;
+            latitude: number | null;
+            longitude: number | null;
+        }[]
+    ).map((p) => ({
         external_place_id: extByPid.get(p.place_id) ?? null,
         name: p.name,
+        address: p.address ?? null,
         latitude: p.latitude,
         longitude: p.longitude,
     }));
@@ -263,12 +264,29 @@ async function main() {
     const importedIds = new Set<string>();
     for (const r of existing) {
         const id = r.external_place_id?.trim();
-        if (id) importedIds.add(normalizeGid(id) || id);
+        if (id) {
+            addGooglePlaceIdVariantsToSet(importedIds, normalizeGid(id) || id);
+        }
+    }
+
+    const { data: matchedGoogleRows } = await sb
+        .from("place_google_data")
+        .select("google_place_id")
+        .eq("city_slug", city)
+        .eq("category_slug", category_slug)
+        .eq("google_match_status", "matched");
+
+    for (const row of matchedGoogleRows ?? []) {
+        const gid = (row as { google_place_id: string | null }).google_place_id?.trim();
+        if (gid) {
+            addGooglePlaceIdVariantsToSet(importedIds, gid);
+        }
     }
 
     const checkpoint = loadCheckpoint(city, category_slug);
-    const rawTarget = Math.max(target * 3, 150);
-    const previewTopN = Math.min(200, Math.max(target, 60));
+    // Place Details = 1 call per shortlist row; scale with target (was min 60 → expensive for --target=1).
+    const previewTopN = Math.min(200, Math.max(target * 5, 24));
+    const rawTarget = Math.min(200, Math.max(previewTopN * 2, 50, target * 4));
 
     console.log(
         JSON.stringify({
@@ -300,6 +318,9 @@ async function main() {
     const usedSlugs = new Set<string>();
 
     for (const row of rows) {
+        if (inserted >= target) {
+            break;
+        }
         if (row.already_imported || row.likely_duplicate) {
             skipped++;
             continue;
@@ -343,6 +364,18 @@ async function main() {
             checkpoint.add(checkpointKey(ext));
             inserted++;
             console.log("inserted", place_id, row.name);
+            if (syncPhotos && maxPhotos > 0) {
+                const photoRes = await uploadGooglePhotosForPlace(sb, {
+                    apiKey: googleKey,
+                    city_slug: city,
+                    category_slug,
+                    place_id,
+                    external_place_id: ext,
+                    maxPhotos,
+                    photoDelayMs,
+                });
+                if (photoRes.count > 0) console.log("photos ok", photoRes.count, place_id);
+            }
         } catch (e) {
             console.error("insert failed", place_id, e);
             skipped++;
@@ -375,6 +408,91 @@ async function main() {
             checkpoint_size: checkpoint.size,
         }),
     );
+}
+
+async function main() {
+    const city = argVal("--city")?.trim();
+    const categoryRaw = argVal("--category")?.trim();
+    const allCategories = hasFlag("--all-categories");
+    const target = Math.min(200, Math.max(1, parseIntArg("--target", 60)));
+    const dry = hasFlag("--dry-run");
+    const pauseMs = Math.max(0, parseIntArg("--between-categories-ms", 2500));
+    const syncPhotos = !hasFlag("--no-photos");
+    const maxPhotos = Math.min(3, Math.max(0, parseIntArg("--max-photos", 3)));
+    const photoDelayMs = Math.max(0, parseIntArg("--photo-delay-ms", 180));
+
+    if (!city) {
+        console.error("Required: --city=slug");
+        process.exit(1);
+    }
+
+    let categories: GoogleImportSupportedCategory[];
+    if (allCategories) {
+        categories = [...GOOGLE_IMPORT_SUPPORTED_CATEGORIES];
+    } else {
+        if (!categoryRaw) {
+            console.error("Use --category=slug or --all-categories");
+            process.exit(1);
+        }
+        if (!GOOGLE_IMPORT_SUPPORTED_CATEGORIES.includes(categoryRaw as GoogleImportSupportedCategory)) {
+            console.error("Invalid category. Use:", GOOGLE_IMPORT_SUPPORTED_CATEGORIES.join(", "));
+            process.exit(1);
+        }
+        categories = [categoryRaw as GoogleImportSupportedCategory];
+    }
+
+    const sb = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+    const { data: cityRow, error: cErr } = await sb
+        .from("cities")
+        .select("latitude, longitude")
+        .eq("slug", city)
+        .maybeSingle();
+    if (cErr || !cityRow) {
+        console.error("City not found:", city);
+        process.exit(1);
+    }
+    const la = Number((cityRow as { latitude: number | null }).latitude);
+    const lo = Number((cityRow as { longitude: number | null }).longitude);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+        console.error("City missing coordinates:", city);
+        process.exit(1);
+    }
+
+    console.log(
+        JSON.stringify({
+            phase: "start",
+            city,
+            categories: categories.length,
+            category_slugs: categories,
+            target_per_category: target,
+            dry_run: dry,
+            sync_photos: syncPhotos && !dry && maxPhotos > 0,
+            max_photos: syncPhotos ? maxPhotos : 0,
+        }),
+    );
+
+    for (let ci = 0; ci < categories.length; ci++) {
+        const category_slug = categories[ci]!;
+        if (ci > 0 && pauseMs > 0) {
+            console.log(`pause ${pauseMs}ms before ${category_slug}`);
+            await sleep(pauseMs);
+        }
+        await runBulkForCategory({
+            sb,
+            city,
+            la,
+            lo,
+            category_slug,
+            target,
+            dry,
+            syncPhotos,
+            maxPhotos,
+            photoDelayMs,
+        });
+    }
+
+    console.log(JSON.stringify({ phase: "all_done", city, categories_run: categories.length }));
 }
 
 main().catch((e) => {

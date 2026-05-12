@@ -1,3 +1,4 @@
+import { normalizeForSearch } from "@/lib/global-place-search";
 import {
     createPlaceInSupabase,
     deletePlaceFromSupabase,
@@ -26,22 +27,14 @@ function filterAdminPlaces(
 ): AdminSupabasePlaceRow[] {
     let filtered: AdminSupabasePlaceRow[] = places;
 
-    const searchTokens = search
-        .toLowerCase()
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
+    const normQ = normalizeForSearch(search);
+    const searchTokens = normQ ? normQ.split(/\s+/).filter(Boolean) : [];
 
     if (searchTokens.length > 0) {
         filtered = filtered.filter((p) => {
-            const haystack = [
-                p.name,
-                p.city_slug,
-                p.category_slug,
-                p.address ?? "",
-            ]
-                .join(" ")
-                .toLowerCase();
+            const haystack = normalizeForSearch(
+                [p.name, p.city_slug, p.category_slug, p.address ?? ""].join(" "),
+            );
             return searchTokens.every((token) => haystack.includes(token));
         });
     }

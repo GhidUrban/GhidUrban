@@ -4,8 +4,12 @@ import {
     GOOGLE_IMPORT_SUPPORTED_CATEGORIES,
     isGoogleImportCategory,
 } from "@/lib/google-import-categories";
-import { runGoogleImportPreview } from "@/lib/google-import";
+import {
+    addGooglePlaceIdVariantsToSet,
+    runGoogleImportPreview,
+} from "@/lib/google-import";
 import { resolveCityCenterCoordinates } from "@/lib/place-repository";
+import { normalizePlaceAddressForDedupe } from "@/lib/repositories/place-repository";
 import { supabase } from "@/lib/supabase/client";
 
 /** Doar Google Places preview — fără Overpass/OSM ca fallback. */
@@ -65,7 +69,7 @@ export async function POST(req: Request) {
 
         const { data: placeRows, error: exErr } = await supabase
             .from("places")
-            .select("place_id, name, latitude, longitude")
+            .select("place_id, name, address, latitude, longitude")
             .eq("city_slug", city_slug)
             .eq("category_slug", category_slug);
 
@@ -100,20 +104,27 @@ export async function POST(req: Request) {
         const existing = ((placeRows ?? []) as {
             place_id: string;
             name: string | null;
+            address: string | null;
             latitude: number | null;
             longitude: number | null;
         }[]).map((r) => ({
             external_place_id: extByPid.get(r.place_id) ?? null,
             name: r.name,
+            address: r.address ?? null,
             latitude: r.latitude,
             longitude: r.longitude,
         }));
 
         const nameLowerSet = new Set<string>();
+        const addressNormSet = new Set<string>();
         for (const r of existing) {
             const n = r.name?.trim().toLowerCase();
             if (n) {
                 nameLowerSet.add(n);
+            }
+            const a = normalizePlaceAddressForDedupe(r.address ?? null);
+            if (a) {
+                addressNormSet.add(a);
             }
         }
 
@@ -121,7 +132,25 @@ export async function POST(req: Request) {
         for (const r of existing) {
             const id = r.external_place_id?.trim();
             if (id) {
-                importedIds.add(id);
+                addGooglePlaceIdVariantsToSet(importedIds, id);
+            }
+        }
+
+        const { data: matchedGoogleRows, error: matchedGErr } = await supabase
+            .from("place_google_data")
+            .select("google_place_id")
+            .eq("city_slug", city_slug)
+            .eq("category_slug", category_slug)
+            .eq("google_match_status", "matched");
+
+        if (matchedGErr) {
+            console.error("[Google import] matched google_place_id query:", matchedGErr);
+        } else {
+            for (const row of matchedGoogleRows ?? []) {
+                const gid = (row as { google_place_id: string | null }).google_place_id?.trim();
+                if (gid) {
+                    addGooglePlaceIdVariantsToSet(importedIds, gid);
+                }
             }
         }
 
@@ -154,7 +183,11 @@ export async function POST(req: Request) {
             const byName = Boolean(
                 r.name?.trim() && nameLowerSet.has(r.name.trim().toLowerCase()),
             );
-            const already_imported = r.already_imported || byName;
+            const byAddress = Boolean(
+                r.address?.trim() &&
+                    addressNormSet.has(normalizePlaceAddressForDedupe(r.address)),
+            );
+            const already_imported = r.already_imported || byName || byAddress;
 
             return {
                 place_id: r.place_id,

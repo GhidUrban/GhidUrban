@@ -1,12 +1,98 @@
 import { GOOGLE_IMPORT_SUPPORTED_CATEGORIES } from "@/lib/google-import-categories";
+import { normalizeForSearch } from "@/lib/global-place-search";
 import { supabase } from "@/lib/supabase/client";
 import { getAllCitiesForAdminFromSupabase } from "./city-repository";
-import { normalizeCanonicalGooglePlaceId, findGooglePlaceIdListingConflict } from "./google-match-repository";
+import { normalizeCanonicalGooglePlaceId } from "./google-match-repository";
 import type {
     AdminGoogleMatchReviewRow,
     GoogleImportCoverageRow,
     GoogleMatchReviewListFilters,
+    GooglePlaceIdListingConflict,
 } from "./types";
+
+function scopeKey(cs: string, cat: string): string {
+    return `${cs}\t${cat}`;
+}
+
+function placeNameMatchesReviewSearch(placeName: string, rawSearch: string): boolean {
+    const normTokens = normalizeForSearch(rawSearch)
+        .split(/\s+/)
+        .filter(Boolean);
+    if (normTokens.length === 0) {
+        return true;
+    }
+    const haystack = normalizeForSearch(placeName);
+    return normTokens.every((t) => haystack.includes(t));
+}
+
+/** O singură trecere Supabase / pereche oraș+categorie — fără zeci de cereri paralele. */
+async function loadGooglePlaceIdPeerMap(
+    scopes: { city_slug: string; category_slug: string }[],
+): Promise<{ peerMap: Map<string, string[]>; failedScopes: Set<string> }> {
+    const peerMap = new Map<string, string[]>();
+    const failedScopes = new Set<string>();
+    for (const { city_slug: cs, category_slug: cat } of scopes) {
+        const sk = scopeKey(cs, cat);
+        const { data, error } = await supabase
+            .from("place_google_data")
+            .select("place_id, google_place_id")
+            .eq("city_slug", cs)
+            .eq("category_slug", cat)
+            .not("google_place_id", "is", null);
+        if (error) {
+            console.error("[google-match-review] peer load failed", sk, error.message);
+            failedScopes.add(sk);
+            continue;
+        }
+        for (const row of (data ?? []) as { place_id: string; google_place_id: string | null }[]) {
+            const mk = normalizeCanonicalGooglePlaceId(row.google_place_id ?? undefined);
+            if (!mk) continue;
+            const gkey = `${sk}\t${mk}`;
+            const list = peerMap.get(gkey) ?? [];
+            if (!list.includes(row.place_id)) list.push(row.place_id);
+            peerMap.set(gkey, list);
+        }
+    }
+    return { peerMap, failedScopes };
+}
+
+async function loadConflictPlaceNames(
+    keys: { place_id: string; city_slug: string; category_slug: string }[],
+): Promise<Map<string, { name: string; address: string | null }>> {
+    const out = new Map<string, { name: string; address: string | null }>();
+    if (keys.length === 0) return out;
+    const byScope = new Map<string, string[]>();
+    for (const e of keys) {
+        const sk = scopeKey(e.city_slug, e.category_slug);
+        const arr = byScope.get(sk) ?? [];
+        if (!arr.includes(e.place_id)) arr.push(e.place_id);
+        byScope.set(sk, arr);
+    }
+    for (const [sk, placeIds] of byScope) {
+        const [cs, cat] = sk.split("\t");
+        const { data, error } = await supabase
+            .from("places")
+            .select("place_id, city_slug, category_slug, name, address")
+            .eq("city_slug", cs)
+            .eq("category_slug", cat)
+            .in("place_id", placeIds);
+        if (error) {
+            console.error("[google-match-review] conflict name load failed", sk, error.message);
+            continue;
+        }
+        for (const row of (data ?? []) as {
+            place_id: string;
+            city_slug: string;
+            category_slug: string;
+            name: string | null;
+            address: string | null;
+        }[]) {
+            const k = `${row.place_id}|${row.city_slug}|${row.category_slug}`;
+            out.set(k, { name: row.name?.trim() || row.place_id, address: row.address ?? null });
+        }
+    }
+    return out;
+}
 
 export async function getGoogleImportCoverageHintsFromSupabase(): Promise<GoogleImportCoverageRow[]> {
     const cities = await getAllCitiesForAdminFromSupabase();
@@ -73,8 +159,10 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
     if (rows.length === 0) return [];
 
     const placeIds = rows.map((r: Record<string, unknown>) => r.place_id as string);
-    let pq = supabase.from("places").select("place_id, city_slug, category_slug, name, address, image_storage_path").in("place_id", placeIds);
-    if (search) pq = pq.ilike("name", `%${search}%`);
+    const pq = supabase
+        .from("places")
+        .select("place_id, city_slug, category_slug, name, address, image_storage_path")
+        .in("place_id", placeIds);
     const { data: placeRows, error: pError } = await pq;
     if (pError) throw new Error("Failed to fetch place names for review");
 
@@ -94,6 +182,9 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
         const key = `${raw.place_id}|${raw.city_slug}|${raw.category_slug}`;
         const pl = placeMap.get(key);
         if (!pl) continue;
+        if (search && !placeNameMatchesReviewSearch(pl.name, search)) {
+            continue;
+        }
         const image_storage_path = pl.image_storage_path;
         if (missingStorageOnly && image_storage_path?.trim()) {
             continue;
@@ -123,18 +214,56 @@ export async function getPlacesForGoogleMatchReviewFromSupabase(
         return a.name.localeCompare(b.name);
     });
 
-    return Promise.all(
-        base.map(async (r) => {
-            const gid = r.google_place_id?.trim();
-            if (gid == null || gid === "") {
-                return { ...r, has_google_conflict: false, conflict: null, conflict_check_failed: false };
-            }
-            try {
-                const conflict = await findGooglePlaceIdListingConflict(r.google_place_id, r.place_id, r.city_slug, r.category_slug);
-                return { ...r, has_google_conflict: conflict != null, conflict, conflict_check_failed: false };
-            } catch {
-                return { ...r, has_google_conflict: null, conflict: null, conflict_check_failed: true };
-            }
-        }),
-    );
+    const scopeSet = new Map<string, { city_slug: string; category_slug: string }>();
+    for (const b of base) {
+        const sk = scopeKey(b.city_slug, b.category_slug);
+        if (!scopeSet.has(sk)) scopeSet.set(sk, { city_slug: b.city_slug, category_slug: b.category_slug });
+    }
+    const { peerMap, failedScopes } = await loadGooglePlaceIdPeerMap([...scopeSet.values()]);
+
+    const conflictOthers: { place_id: string; city_slug: string; category_slug: string }[] = [];
+    for (const r of base) {
+        if (failedScopes.has(scopeKey(r.city_slug, r.category_slug))) continue;
+        const mk = normalizeCanonicalGooglePlaceId(r.google_place_id ?? undefined);
+        if (!mk) continue;
+        const gkey = `${scopeKey(r.city_slug, r.category_slug)}\t${mk}`;
+        const peers = peerMap.get(gkey) ?? [];
+        const otherId = peers.find((p) => p !== r.place_id);
+        if (otherId) {
+            conflictOthers.push({ place_id: otherId, city_slug: r.city_slug, category_slug: r.category_slug });
+        }
+    }
+    const conflictMeta = await loadConflictPlaceNames(conflictOthers);
+
+    return base.map((r): AdminGoogleMatchReviewRow => {
+        if (failedScopes.has(scopeKey(r.city_slug, r.category_slug))) {
+            return { ...r, has_google_conflict: null, conflict: null, conflict_check_failed: true };
+        }
+        const gid = r.google_place_id?.trim();
+        if (!gid) {
+            return { ...r, has_google_conflict: false, conflict: null, conflict_check_failed: false };
+        }
+        const mk = normalizeCanonicalGooglePlaceId(gid);
+        if (!mk) {
+            return { ...r, has_google_conflict: false, conflict: null, conflict_check_failed: false };
+        }
+        const gkey = `${scopeKey(r.city_slug, r.category_slug)}\t${mk}`;
+        const peers = peerMap.get(gkey) ?? [];
+        if (peers.length <= 1) {
+            return { ...r, has_google_conflict: false, conflict: null, conflict_check_failed: false };
+        }
+        const otherId = peers.find((p) => p !== r.place_id);
+        if (!otherId) {
+            return { ...r, has_google_conflict: false, conflict: null, conflict_check_failed: false };
+        }
+        const meta = conflictMeta.get(`${otherId}|${r.city_slug}|${r.category_slug}`);
+        const conflict: GooglePlaceIdListingConflict = {
+            conflicting_place_id: otherId,
+            conflicting_name: meta?.name ?? otherId,
+            conflicting_city_slug: r.city_slug,
+            conflicting_category_slug: r.category_slug,
+            conflicting_address: meta?.address ?? null,
+        };
+        return { ...r, has_google_conflict: true, conflict, conflict_check_failed: false };
+    });
 }

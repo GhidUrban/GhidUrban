@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -9,6 +10,8 @@ try {
 }
 
 const nextConfig: NextConfig = {
+  // Pin tracing to this app so Next does not pick ~/package-lock.json as the monorepo root.
+  outputFileTracingRoot: path.join(__dirname),
   images: {
     remotePatterns: [
       ...(supabaseHost

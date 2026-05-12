@@ -551,7 +551,7 @@ export default function AdminPage() {
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 <Link
-                                                    href={`/admin/edit/${place.place_id}`}
+                                                    href={`/admin/edit/${encodeURIComponent(place.place_id)}?city_slug=${encodeURIComponent(place.city_slug)}&category_slug=${encodeURIComponent(place.category_slug)}`}
                                                     className="inline-flex min-h-9 flex-1 items-center justify-center rounded-md bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700 sm:flex-none"
                                                 >
                                                     Edit
