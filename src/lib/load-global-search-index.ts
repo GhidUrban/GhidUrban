@@ -49,7 +49,6 @@ export type GlobalSearchIndex = {
 
 let cachedIndex: GlobalSearchIndex | null = null;
 let inflightLoad: Promise<GlobalSearchIndex> | null = null;
-let clientPrewarmRequested = false;
 
 async function loadGlobalSearchIndexUncached(): Promise<GlobalSearchIndex> {
     const citiesRows = await getPublicCitiesFromSupabase();
@@ -134,19 +133,4 @@ export async function loadGlobalSearchIndex(): Promise<GlobalSearchIndex> {
             throw err;
         });
     return inflightLoad;
-}
-
-/**
- * Warm server-side index (uses same cache + in-flight dedupe as `loadGlobalSearchIndex`).
- * Call from client before navigating to `/cauta` so the first RSC render can hit cache.
- */
-export function prewarmGlobalSearchIndex(): void {
-    if (typeof window === "undefined") {
-        return;
-    }
-    if (clientPrewarmRequested) {
-        return;
-    }
-    clientPrewarmRequested = true;
-    void fetch("/api/global-search-index/prewarm", { method: "GET" }).catch(() => {});
 }

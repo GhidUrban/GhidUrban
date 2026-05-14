@@ -74,7 +74,7 @@ function importQualityBadge(score: number): { label: string; className: string }
 }
 
 export default function AdminImportPage() {
-    const [importSource, setImportSource] = useState<"osm" | "google">("osm");
+    const [importSource, setImportSource] = useState<"osm" | "google">("google");
     const [citySlug, setCitySlug] = useState("");
     const [categorySlug, setCategorySlug] = useState("");
     const [results, setResults] = useState<ImportDraftResult[] | null>(null);
@@ -116,48 +116,37 @@ export default function AdminImportPage() {
         };
     }, []);
 
-    useEffect(() => {
-        if (importSource !== "google") {
-            return;
-        }
-        let cancelled = false;
+    const refreshCoverage = useCallback(async () => {
         setGoogleCoverageLoading(true);
         setGoogleCoverageError("");
-        void (async () => {
-            try {
-                const res = await fetch("/api/admin/import/google-coverage", {
-                    credentials: "include",
-                    cache: "no-store",
-                });
-                const json = (await res.json()) as {
-                    success?: boolean;
-                    message?: string;
-                    data?: { rows?: GoogleImportCoverageRow[] };
-                };
-                if (cancelled) {
-                    return;
-                }
-                if (!res.ok || !json.success) {
-                    setGoogleCoverageRows(null);
-                    setGoogleCoverageError(json.message || "Nu s-a putut încărca lista.");
-                    return;
-                }
-                setGoogleCoverageRows(Array.isArray(json.data?.rows) ? json.data!.rows! : []);
-            } catch {
-                if (!cancelled) {
-                    setGoogleCoverageRows(null);
-                    setGoogleCoverageError("Nu s-a putut contacta serverul.");
-                }
-            } finally {
-                if (!cancelled) {
-                    setGoogleCoverageLoading(false);
-                }
+        try {
+            const res = await fetch("/api/admin/import/google-coverage", {
+                credentials: "include",
+                cache: "no-store",
+            });
+            const json = (await res.json()) as {
+                success?: boolean;
+                message?: string;
+                data?: { rows?: GoogleImportCoverageRow[] };
+            };
+            if (!res.ok || !json.success) {
+                setGoogleCoverageRows(null);
+                setGoogleCoverageError(json.message || "Nu s-a putut încărca lista.");
+                return;
             }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, [importSource]);
+            setGoogleCoverageRows(Array.isArray(json.data?.rows) ? json.data!.rows! : []);
+        } catch {
+            setGoogleCoverageRows(null);
+            setGoogleCoverageError("Nu s-a putut contacta serverul.");
+        } finally {
+            setGoogleCoverageLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (importSource !== "google") return;
+        void refreshCoverage();
+    }, [importSource, refreshCoverage]);
 
     const cityOptions = useMemo(
         () =>
@@ -318,6 +307,7 @@ export default function AdminImportPage() {
             setSelectedIds(new Set());
             setResults(null);
             setGoogleMeta(null);
+            void refreshCoverage();
         } catch {
             setImportError("Nu s-a putut contacta serverul.");
         } finally {
@@ -456,7 +446,7 @@ export default function AdminImportPage() {
                             <p className="mt-2 text-xs text-red-700">{googleCoverageError}</p>
                         ) : googleCoverageRows && googleCoverageRows.length > 0 ? (
                             <ul className="mt-3 flex flex-wrap gap-2">
-                                {googleCoverageRows.slice(0, 18).map((r) => {
+                                {googleCoverageRows.filter((r) => r.place_count < 10).slice(0, 50).map((r) => {
                                     const active =
                                         citySlug === r.city_slug && categorySlug === r.category_slug;
                                     const catLabel = CATEGORY_LABELS[r.category_slug] ?? r.category_slug;

@@ -31,7 +31,7 @@ export default async function HomePage() {
 
   return (
     <HomeFixedMainShell>
-      <main className="flex min-h-0 flex-1 flex-col max-md:overflow-hidden md:min-h-screen md:overflow-visible">
+      <main className="flex min-h-0 flex-1 flex-col max-md:overflow-y-auto md:min-h-screen md:overflow-visible">
         <section className="flex shrink-0 flex-col items-center px-5 pb-6 pt-[max(1rem,env(safe-area-inset-top))] max-md:pb-4 sm:px-6 sm:pb-8 sm:pt-12">
           <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-5 rounded-3xl bg-white/80 px-6 py-8 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)] ring-1 ring-indigo-200/40 backdrop-blur-sm sm:px-10 sm:py-10">
             <Image

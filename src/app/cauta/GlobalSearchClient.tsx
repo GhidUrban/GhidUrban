@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { accentAddPlaceCtaCompactClassName } from "@/components/AppHeader";
-import Breadcrumb from "@/components/Breadcrumb";
 import type {
     GlobalSearchCategory,
     GlobalSearchIndex,
@@ -34,29 +32,28 @@ import { CautaRecentVisitedRow } from "@/components/CautaRecentVisitedRow";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
 import { CITY_HUB_CATEGORY_ROWS, topPlacesPerCategoriesForCity } from "@/lib/city-search-spotlight";
 
-/** Link compact la hub oraș — același stil pentru hub pe query și oraș contextual după Locuri. */
-function CityChipLink({
+function CityResultHeader({
     citySlug,
     cityDisplayName,
-    highlightQuery,
 }: {
     citySlug: string;
     cityDisplayName: string;
-    highlightQuery?: string;
 }) {
     return (
-        <Link
-            href={`/orase/${citySlug}`}
-            className="mb-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.99]"
-            aria-label={`${cityDisplayName} — vezi orașul`}
-        >
-            <span className="min-w-0 truncate font-medium text-[#0B2A3C]">
-                {highlightQuery?.length
-                    ? highlightPlaceTitle(cityDisplayName, highlightQuery)
-                    : cityDisplayName}
-            </span>
-            <span className="shrink-0 text-xs font-medium text-[#008fa8]">Vezi</span>
-        </Link>
+        <div className="mb-4 max-w-2xl">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">{cityDisplayName}</h2>
+                <span className="select-none text-slate-300" aria-hidden>
+                    ·
+                </span>
+                <Link
+                    href={`/orase/${citySlug}`}
+                    className="text-sm font-medium text-[#008fa8] underline-offset-[3px] hover:underline"
+                >
+                    Vezi orașul
+                </Link>
+            </div>
+        </div>
     );
 }
 
@@ -456,60 +453,55 @@ export function GlobalSearchClient({
 
     return (
         <>
-            <header className="mb-4 min-w-0 space-y-3 sm:space-y-4">
-                <div className="flex min-h-[32px] min-w-0 items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                        <Breadcrumb
-                            items={[{ label: "Acasă", href: "/" }, { label: "Caută" }]}
-                            muted
-                        />
-                    </div>
-                </div>
-                <h1 className="sr-only">Caută</h1>
-            </header>
+            <h1 className="sr-only">Caută</h1>
 
-            <div className="mx-auto mb-4 w-full max-w-2xl">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <label htmlFor="global-search" className="sr-only">
-                        Caută locații
-                    </label>
-                    <form
-                        className="min-w-0 w-full flex-1"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            commitQuery(inputValue);
-                        }}
-                    >
-                        <div className="relative rounded-xl focus-within:ring-2 focus-within:ring-[#2EC4B6]/25">
-                            <input
-                                ref={inputRef}
-                                id="global-search"
-                                type="search"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                placeholder="Caută oraș, categorie sau locație..."
-                                className="h-10 w-full appearance-none rounded-xl border border-black/10 bg-white px-4 pr-10 text-[15px] text-[#0B2A3C] caret-[#0B2A3C] outline-none shadow-none transition-colors duration-200 placeholder:text-gray-400 focus:border-black/10 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none md:text-sm"
-                                autoComplete="off"
-                                enterKeyHint="search"
-                                aria-busy={showSpinner}
-                            />
-                            {showSpinner ? (
-                                <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center">
-                                    <span
-                                        className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400/80 border-t-[#0B2A3C]"
-                                        aria-hidden
-                                    />
-                                </span>
-                            ) : null}
-                        </div>
-                    </form>
-                    <Link
-                        href="/adauga-locatie"
-                        className={`${accentAddPlaceCtaCompactClassName} w-full justify-center sm:w-auto`}
-                    >
-                        Adaugă locație
-                    </Link>
-                </div>
+            <div className="mx-auto mb-5 w-full max-w-2xl">
+                <label htmlFor="global-search" className="sr-only">
+                    Caută locații
+                </label>
+                <form
+                    className="w-full"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        commitQuery(inputValue);
+                    }}
+                >
+                    <div className="relative rounded-xl focus-within:ring-2 focus-within:ring-[#2EC4B6]/25">
+                        <svg
+                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden
+                        >
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.3-4.3" />
+                        </svg>
+                        <input
+                            ref={inputRef}
+                            id="global-search"
+                            type="search"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            placeholder="Caută oraș, categorie sau locație..."
+                            className="h-11 w-full appearance-none rounded-xl border border-black/10 bg-white pl-10 pr-10 text-[15px] text-[#0B2A3C] caret-[#0B2A3C] outline-none shadow-none transition-colors duration-200 placeholder:text-gray-400 focus:border-black/10 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none md:text-sm"
+                            autoComplete="off"
+                            enterKeyHint="search"
+                            aria-busy={showSpinner}
+                        />
+                        {showSpinner ? (
+                            <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center">
+                                <span
+                                    className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400/80 border-t-[#0B2A3C]"
+                                    aria-hidden
+                                />
+                            </span>
+                        ) : null}
+                    </div>
+                </form>
                 {showSpinner && showSearchingText ? (
                     <p className="mt-2 text-xs text-gray-400">Se caută...</p>
                 ) : null}
@@ -588,13 +580,7 @@ export function GlobalSearchClient({
                             className="mx-auto mb-6 max-w-4xl"
                             aria-labelledby="cauta-context-spotlight"
                         >
-                            <h2
-                                id="cauta-context-spotlight"
-                                className="mb-2 text-sm font-semibold text-gray-800"
-                            >
-                                Top în {contextCityName}
-                            </h2>
-                            <CityChipLink
+                            <CityResultHeader
                                 citySlug={contextCitySlug}
                                 cityDisplayName={contextCityName}
                             />
@@ -612,13 +598,9 @@ export function GlobalSearchClient({
 
                     {cityHubActive && primaryCitySlug && spotlightByCategory ? (
                         <section className="mx-auto mb-6 max-w-4xl" aria-labelledby="cauta-rez-orase">
-                            <h2 id="cauta-rez-orase" className="mb-2 text-sm font-semibold text-gray-800">
-                                Oraș
-                            </h2>
-                            <CityChipLink
+                            <CityResultHeader
                                 citySlug={primaryCitySlug}
                                 cityDisplayName={primaryCityName}
-                                highlightQuery={normalizedQuery}
                             />
                             <CitySpotlightStrips
                                 spotlightByCategory={spotlightByCategory}

@@ -1,6 +1,6 @@
 "use client";
 
-import { prewarmGlobalSearchIndex } from "@/lib/load-global-search-index";
+import { prewarmGlobalSearchIndex } from "@/lib/prewarm-global-search-client";
 import { useState } from "react";
 
 function SearchIcon({ className }: { className?: string }) {

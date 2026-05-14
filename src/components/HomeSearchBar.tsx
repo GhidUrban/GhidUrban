@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
-import { prewarmGlobalSearchIndex } from "@/lib/load-global-search-index";
+import { prewarmGlobalSearchIndex } from "@/lib/prewarm-global-search-client";
 
 export function HomeSearchBar() {
     const router = useRouter();

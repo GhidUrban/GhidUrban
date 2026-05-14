@@ -98,31 +98,37 @@ export async function getGoogleImportCoverageHintsFromSupabase(): Promise<Google
     const cities = await getAllCitiesForAdminFromSupabase();
     const citySlugs = new Set(cities.map((c) => c.slug));
 
-    const { data: placeRows, error } = await supabase
-        .from("places")
-        .select("city_slug, category_slug")
-        .in("category_slug", [...GOOGLE_IMPORT_SUPPORTED_CATEGORIES]);
-
-    if (error) throw new Error("Failed to load google import coverage");
-
-    const counts = new Map<string, number>();
-    for (const raw of placeRows ?? []) {
-        const row = raw as { city_slug: string | null; category_slug: string | null };
-        const cs = row.city_slug?.trim() ?? "";
-        const cat = row.category_slug?.trim() ?? "";
-        if (!cs || !cat || !citySlugs.has(cs)) continue;
-        const key = `${cs}\t${cat}`;
-        counts.set(key, (counts.get(key) ?? 0) + 1);
+    const PAGE = 1000;
+    const counts: Record<string, number> = {};
+    let from = 0;
+    while (true) {
+        const { data, error } = await supabase
+            .from("places")
+            .select("city_slug, category_slug")
+            .in("category_slug", [...GOOGLE_IMPORT_SUPPORTED_CATEGORIES])
+            .range(from, from + PAGE - 1);
+        if (error) throw new Error("Failed to load google import coverage");
+        for (const r of data ?? []) {
+            const row = r as { city_slug: string | null; category_slug: string | null };
+            const cs = row.city_slug?.trim() ?? "";
+            const cat = row.category_slug?.trim() ?? "";
+            if (!cs || !cat || !citySlugs.has(cs)) continue;
+            const key = `${cs}\t${cat}`;
+            counts[key] = (counts[key] ?? 0) + 1;
+        }
+        if (!data || data.length < PAGE) break;
+        from += PAGE;
     }
 
     const out: GoogleImportCoverageRow[] = [];
     for (const city of cities) {
         for (const category_slug of GOOGLE_IMPORT_SUPPORTED_CATEGORIES) {
+            const k = `${city.slug}\t${category_slug}`;
             out.push({
                 city_slug: city.slug,
                 city_name: city.name,
                 category_slug,
-                place_count: counts.get(`${city.slug}\t${category_slug}`) ?? 0,
+                place_count: counts[k] ?? 0,
             });
         }
     }
