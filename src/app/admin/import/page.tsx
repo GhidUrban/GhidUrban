@@ -616,17 +616,43 @@ export default function AdminImportPage() {
                                     !row.image.includes("place-placeholder")
                                         ? row.image.trim()
                                         : null;
+                                const selectable = !imported && !dupHint;
                                 return (
                                     <li
                                         key={`${citySlug}-${categorySlug}-${id}`}
-                                        className="border border-gray-200 rounded p-3 mb-3 bg-white"
+                                        role={selectable ? "button" : undefined}
+                                        tabIndex={selectable ? 0 : undefined}
+                                        className={
+                                            "border border-gray-200 rounded p-3 mb-3 bg-white transition-colors " +
+                                            (selectable
+                                                ? "cursor-pointer hover:bg-slate-50/90 focus-visible:outline focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                                                : "cursor-not-allowed opacity-90")
+                                        }
+                                        onClick={() => {
+                                            if (!selectable) return;
+                                            toggleOne(id, !checked, imported, dupHint);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (!selectable) return;
+                                            if (e.key === "Enter" || e.key === " ") {
+                                                e.preventDefault();
+                                                toggleOne(id, !checked, imported, dupHint);
+                                            }
+                                        }}
+                                        aria-label={
+                                            selectable
+                                                ? checked
+                                                    ? "Bifează pentru a deselecta"
+                                                    : "Bifează pentru a selecta"
+                                                : undefined
+                                        }
                                     >
                                         <div className="flex gap-3">
                                             {thumbSrc ? (
                                                 <img
                                                     src={thumbSrc}
                                                     alt={row.name || ""}
-                                                    className="w-32 h-24 shrink-0 rounded object-cover"
+                                                    className="pointer-events-none w-32 h-24 shrink-0 rounded object-cover"
                                                     referrerPolicy="no-referrer"
                                                     onError={(e) => {
                                                         e.currentTarget.style.display = "none";
@@ -659,6 +685,7 @@ export default function AdminImportPage() {
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="text-blue-600 underline hover:text-blue-800"
+                                                            onClick={(e) => e.stopPropagation()}
                                                         >
                                                             {row.website}
                                                         </a>
@@ -688,6 +715,7 @@ export default function AdminImportPage() {
                                                         type="checkbox"
                                                         disabled={imported || dupHint}
                                                         checked={checked}
+                                                        onClick={(e) => e.stopPropagation()}
                                                         onChange={(e) =>
                                                             toggleOne(
                                                                 id,
@@ -712,6 +740,7 @@ export default function AdminImportPage() {
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="text-blue-600 underline hover:text-blue-800"
+                                                            onClick={(e) => e.stopPropagation()}
                                                         >
                                                             Deschide în Maps
                                                         </a>

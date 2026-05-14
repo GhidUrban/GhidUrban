@@ -447,6 +447,33 @@ function restauranteRejectReason(p: GooglePlaceLite): string | null {
     return null;
 }
 
+/** cazare: drop apartment / short-term rental listings (not classic hotel/hostel). */
+function cazareRejectReason(p: GooglePlaceLite): string | null {
+    const name = (p.displayName?.text ?? "").toLowerCase();
+    const addr = (p.formattedAddress ?? "").toLowerCase();
+    const hay = `${name} ${addr}`;
+    const types = (p.types ?? []).map((t) => t.toLowerCase());
+    const typeStr = types.join(" ");
+
+    if (typeStr.includes("real_estate_agency")) {
+        return "type real_estate_agency";
+    }
+    if (typeStr.includes("apartment_complex")) {
+        return "type apartment_complex";
+    }
+
+    if (
+        /\bapartament\b|\bapartments?\b|\bgarsonier[ăa]\b|\bgarsoniera\b/i.test(hay) ||
+        /\bînchiriere\b|\binchirier\b|\bde\s+închiriat\b|\bde\s+inchiriat\b/i.test(hay) ||
+        /\bfor\s+rent\b|\bvacation\s+rental\b|\bairbnb\b/i.test(hay) ||
+        /\bstudio\s+(apart|apartament)/i.test(hay)
+    ) {
+        return "apartment/rental style (name or address)";
+    }
+
+    return null;
+}
+
 function scoreCandidate(
     p: GooglePlaceLite,
     cityCenter: { lat: number; lon: number },
@@ -1105,6 +1132,25 @@ export async function runGoogleImportPreview(options: {
         console.log(
             "[Google import] restaurante lodging filter removed:",
             beforeRestFilter - deduped.length,
+            "remaining:",
+            deduped.length,
+        );
+    }
+
+    if (category_slug === "cazare") {
+        const beforeCazFilter = deduped.length;
+        deduped = deduped.filter((p) => {
+            const display = p.displayName?.text?.trim() ?? "—";
+            const reason = cazareRejectReason(p);
+            if (reason) {
+                console.log(`[cazare filter] rejected ${display} because ${reason}`);
+                return false;
+            }
+            return true;
+        });
+        console.log(
+            "[Google import] cazare apartment/rental filter removed:",
+            beforeCazFilter - deduped.length,
             "remaining:",
             deduped.length,
         );

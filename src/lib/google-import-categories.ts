@@ -99,7 +99,6 @@ export const GOOGLE_IMPORT_CATEGORY_MAP: Record<
         textKeywords: [
             "hotel",
             "guesthouse",
-            "apartment hotel",
             "boutique hotel",
             "bed and breakfast",
             "pension",
