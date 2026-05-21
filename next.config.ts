@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
   // Pin tracing to this app so Next does not pick ~/package-lock.json as the monorepo root.
   outputFileTracingRoot: path.join(__dirname),
   images: {
+    minimumCacheTTL: 2678400,
     remotePatterns: [
       ...(supabaseHost
         ? [

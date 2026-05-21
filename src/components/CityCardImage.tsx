@@ -25,6 +25,9 @@ export function CityCardImage({ src, alt, className, priority, width, height }: 
         setCurrentSrc(resolvedSrc(src));
     }, [src]);
 
+    const isRemote =
+        currentSrc.startsWith("http://") || currentSrc.startsWith("https://");
+
     return (
         <Image
             src={currentSrc}
@@ -33,6 +36,7 @@ export function CityCardImage({ src, alt, className, priority, width, height }: 
             height={height}
             className={className}
             priority={priority}
+            unoptimized={isRemote}
             onError={() => {
                 setCurrentSrc((prev) =>
                     prev === FALLBACK_CITY_IMAGE_SRC ? prev : FALLBACK_CITY_IMAGE_SRC,

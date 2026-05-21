@@ -41,6 +41,7 @@ export function PlaceImage({
   }, [resolved]);
 
   const src = loadFailed ? PLACE_IMAGE_PLACEHOLDER : resolved;
+  const isRemote = src.startsWith("http://") || src.startsWith("https://");
 
   return (
     <Image
@@ -50,6 +51,7 @@ export function PlaceImage({
       height={height}
       className={className}
       priority={priority}
+      unoptimized={isRemote}
       onError={() => setLoadFailed(true)}
     />
   );
