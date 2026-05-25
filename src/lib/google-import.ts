@@ -12,6 +12,7 @@ import {
     GOOGLE_IMPORT_CATEGORY_MAP,
     type GoogleImportSupportedCategory,
 } from "@/lib/google-import-categories";
+import { privateBrandRejectReason } from "@/lib/private-brand-place-blacklist";
 
 const GOOGLE_PLACES_BASE = "https://places.googleapis.com/v1";
 
@@ -30,6 +31,10 @@ const DETAILS_DELAY_MS = 120;
  * Exported for admin copy; change only here.
  */
 export const GOOGLE_IMPORT_PREVIEW_TOP_N = 60;
+
+/** Preview rows must have a Google photo (after Place Details). */
+const GOOGLE_IMPORT_CATEGORIES_REQUIRE_PHOTO: ReadonlySet<GoogleImportSupportedCategory> =
+    new Set(["natura", "cazare", "cafenele", "evenimente", "restaurante"]);
 
 /**
  * Raw candidates to pull from search before dedupe / distance / category filters.
@@ -927,10 +932,12 @@ export type GoogleImportPreviewMeta = {
     raw_candidate_count: number;
     after_dedupe: number;
     after_location_filter: number;
+    after_private_brand_filter: number;
     after_category_filters: number;
     after_scoring_sort: number;
     top_n: number;
     details_fetched: number;
+    skipped_no_photo: number;
 };
 
 export async function runGoogleImportPreview(options: {
@@ -1099,6 +1106,29 @@ export async function runGoogleImportPreview(options: {
     const after_location_filter = deduped.length;
     console.log("[Google import] after location filter:", after_location_filter);
 
+    const beforePrivateFilter = deduped.length;
+    deduped = deduped.filter((p) => {
+        const display = p.displayName?.text?.trim() ?? "—";
+        const reason = privateBrandRejectReason(
+            p.displayName?.text ?? "",
+            p.formattedAddress,
+            p.types,
+        );
+        if (reason) {
+            console.log(`[private brand filter] rejected ${display} because ${reason}`);
+            return false;
+        }
+        return true;
+    });
+    console.log(
+        "[Google import] private brand filter removed:",
+        beforePrivateFilter - deduped.length,
+        "remaining:",
+        deduped.length,
+    );
+    const after_private_brand_filter = deduped.length;
+    console.log("[Google import] after private brand filter:", after_private_brand_filter);
+
     if (category_slug === "cafenele") {
         const beforeCafeFilter = deduped.length;
         deduped = deduped.filter((p) => {
@@ -1188,18 +1218,38 @@ export async function runGoogleImportPreview(options: {
     });
 
     const after_scoring_sort = scored.length;
-    const top = scored.slice(0, previewTopN);
+    const requirePhoto = GOOGLE_IMPORT_CATEGORIES_REQUIRE_PHOTO.has(category_slug);
+    const maxDetailFetches = requirePhoto
+        ? Math.min(scored.length, previewTopN * 3)
+        : previewTopN;
+    const detailCandidates = requirePhoto ? scored : scored.slice(0, previewTopN);
+
     console.log(
-        "[Google import] top",
+        "[Google import] details pass",
+        "require_photo=",
+        requirePhoto,
+        "candidates=",
+        detailCandidates.length,
+        "max_fetches=",
+        maxDetailFetches,
+        "target_rows=",
         previewTopN,
-        "selected from",
+        "pool=",
         after_scoring_sort,
     );
 
     const rows: GoogleImportPreviewRow[] = [];
     let details_fetched = 0;
+    let skipped_no_photo = 0;
 
-    for (const item of top) {
+    for (const item of detailCandidates) {
+        if (rows.length >= previewTopN) {
+            break;
+        }
+        if (details_fetched >= maxDetailFetches) {
+            break;
+        }
+
         const p = item.place;
         const resourceName = p.name?.trim();
         const pid = extractPlaceId(p);
@@ -1238,6 +1288,12 @@ export async function runGoogleImportPreview(options: {
             await sleep(DETAILS_DELAY_MS);
         }
 
+        if (requirePhoto && !image) {
+            skipped_no_photo += 1;
+            console.log(`[photo filter] rejected ${name || "—"} — no Google photo`);
+            continue;
+        }
+
         rows.push(
             liteToNormalized(p, city_slug, category_slug, item.score, item.already, likelyDup, {
                 website,
@@ -1250,6 +1306,9 @@ export async function runGoogleImportPreview(options: {
     }
 
     console.log("[Google import] details fetched:", details_fetched);
+    if (requirePhoto) {
+        console.log("[Google import] skipped no photo:", skipped_no_photo);
+    }
     console.log("[Google import] final preview rows:", rows.length);
 
     return {
@@ -1259,10 +1318,12 @@ export async function runGoogleImportPreview(options: {
             raw_candidate_count,
             after_dedupe,
             after_location_filter,
+            after_private_brand_filter,
             after_category_filters,
             after_scoring_sort,
             top_n: rows.length,
             details_fetched,
+            skipped_no_photo,
         },
     };
 }

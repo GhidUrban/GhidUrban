@@ -30,10 +30,12 @@ type GoogleImportMeta = {
     raw_candidate_count: number;
     after_dedupe: number;
     after_location_filter: number;
+    after_private_brand_filter: number;
     after_category_filters: number;
     after_scoring_sort: number;
     top_n: number;
     details_fetched: number;
+    skipped_no_photo: number;
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -571,9 +573,13 @@ export default function AdminImportPage() {
                     <p className="mt-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600">
                         Google: strategie {googleMeta.strategy} · brut (înainte dedupe) {googleMeta.raw_candidate_count}{" "}
                         · după dedupe {googleMeta.after_dedupe} · după filtru locație {googleMeta.after_location_filter}{" "}
-                        · după filtre categorie {googleMeta.after_category_filters} · după scor (pool){" "}
-                        {googleMeta.after_scoring_sort} · detalii API {googleMeta.details_fetched} · previzualizare{" "}
-                        {googleMeta.top_n}
+                        · după filtru privat {googleMeta.after_private_brand_filter} · după filtre categorie{" "}
+                        {googleMeta.after_category_filters} · după scor (pool){" "}
+                        {googleMeta.after_scoring_sort} · detalii API {googleMeta.details_fetched}
+                        {(googleMeta.skipped_no_photo ?? 0) > 0
+                            ? ` · fără poză (sărite) ${googleMeta.skipped_no_photo}`
+                            : ""}{" "}
+                        · previzualizare {googleMeta.top_n}
                     </p>
                 ) : null}
 
