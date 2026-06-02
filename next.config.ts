@@ -34,6 +34,11 @@ const nextConfig: NextConfig = {
         hostname: "places.googleapis.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "media.ghidurban.ro",
+        pathname: "/**",
+      },
     ],
   },
 };
