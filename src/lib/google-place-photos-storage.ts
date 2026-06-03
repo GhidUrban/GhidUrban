@@ -1,4 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+    buildPlacePhotoR2Key,
+    extensionFromMime,
+    isR2PublicUrl,
+    uploadBufferToR2,
+    validateImageBuffer,
+} from "./r2/upload-place-photo-to-r2";
 
 const PLACES_V1 = "https://places.googleapis.com/v1";
 
@@ -35,7 +42,10 @@ async function fetchPhotoNamesFromDetails(
         .slice(0, max);
 }
 
-async function fetchPhotoMediaBytes(apiKey: string, photoName: string): Promise<Buffer | null> {
+async function fetchPhotoMedia(
+    apiKey: string,
+    photoName: string,
+): Promise<{ body: Buffer; contentType: string } | null> {
     const u = `${PLACES_V1}/${photoName}/media?maxHeightPx=1200`;
     const maxAttempts = 4;
     let lastErr: unknown;
@@ -49,8 +59,14 @@ async function fetchPhotoMediaBytes(apiKey: string, photoName: string): Promise<
                 }
                 return null;
             }
-            const buf = Buffer.from(await res.arrayBuffer());
-            return buf.length > 0 ? buf : null;
+            const headerCt = res.headers.get("content-type")?.split(";")[0]?.trim() ?? "image/jpeg";
+            const body = Buffer.from(await res.arrayBuffer());
+            const validated = validateImageBuffer(body, headerCt);
+            if (!validated.ok) {
+                console.warn("google-place-photos: invalid media", photoName.slice(0, 48), validated.reason);
+                return null;
+            }
+            return { body, contentType: validated.contentType };
         } catch (e) {
             lastErr = e;
             if (attempt < maxAttempts) {
@@ -66,11 +82,11 @@ async function fetchPhotoMediaBytes(apiKey: string, photoName: string): Promise<
 
 export type UploadGooglePlacePhotosResult = {
     count: number;
-    /** API a returnat nume de poze, dar nu s-a reușit nicio încărcare în Storage. */
+    /** API returned photo names but no upload succeeded. */
     failed_after_names: boolean;
 };
 
-/** Descarcă până la maxPhotos de la Google Places API → Supabase Storage; cover + place_photos. */
+/** Download Google Places photos → Cloudflare R2; cover + place_photos. */
 export async function uploadGooglePhotosForPlace(
     sb: SupabaseClient,
     opts: {
@@ -81,6 +97,9 @@ export async function uploadGooglePhotosForPlace(
         external_place_id: string;
         maxPhotos: number;
         photoDelayMs: number;
+        /** Re-upload even when places.image_storage_path is already an R2 URL. */
+        force?: boolean;
+        /** Ignored — kept for backward compatibility with older callers. */
         storageBucket?: string;
     },
 ): Promise<UploadGooglePlacePhotosResult> {
@@ -92,8 +111,23 @@ export async function uploadGooglePhotosForPlace(
         external_place_id,
         maxPhotos,
         photoDelayMs,
-        storageBucket = process.env.SUPABASE_PLACE_IMAGES_BUCKET?.trim() || "places",
+        force = false,
     } = opts;
+
+    if (!force) {
+        const { data: existing } = await sb
+            .from("places")
+            .select("image_storage_path")
+            .eq("place_id", place_id)
+            .eq("city_slug", city_slug)
+            .eq("category_slug", category_slug)
+            .maybeSingle();
+
+        const path = (existing as { image_storage_path?: string | null } | null)?.image_storage_path;
+        if (isR2PublicUrl(path)) {
+            return { count: 0, failed_after_names: false };
+        }
+    }
 
     const gidRaw = external_place_id?.trim() ?? "";
     const g = gidRaw.startsWith("places/") ? gidRaw : gidRaw ? `places/${gidRaw}` : "";
@@ -108,19 +142,31 @@ export async function uploadGooglePhotosForPlace(
 
     const publicUrls: string[] = [];
     for (let i = 0; i < photoNames.length; i++) {
-        const bytes = await fetchPhotoMediaBytes(apiKey, photoNames[i]!);
-        if (!bytes) continue;
-        const objectPath = `${city_slug}/${category_slug}/${place_id}_${i}.jpg`;
-        const { error: upErr } = await sb.storage.from(storageBucket).upload(objectPath, bytes, {
-            contentType: "image/jpeg",
-            upsert: true,
+        const media = await fetchPhotoMedia(apiKey, photoNames[i]!);
+        if (!media) continue;
+
+        const ext = extensionFromMime(media.contentType);
+        const key = buildPlacePhotoR2Key({
+            city_slug,
+            category_slug,
+            place_id,
+            index: i,
+            extension: ext,
         });
-        if (upErr) {
-            console.warn("google-place-photos: storage upload", objectPath, upErr.message);
+
+        try {
+            const uploaded = await uploadBufferToR2({
+                body: media.body,
+                contentType: media.contentType,
+                key,
+            });
+            publicUrls.push(uploaded.publicUrl);
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn("google-place-photos: R2 upload", key, msg);
             continue;
         }
-        const { data: pub } = sb.storage.from(storageBucket).getPublicUrl(objectPath);
-        publicUrls.push(pub.publicUrl);
+
         if (photoDelayMs > 0) await sleep(photoDelayMs);
     }
 

@@ -776,8 +776,8 @@ export default function AdminImportPage() {
                                     className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                 />
                                 <span>
-                                    Încarcă <strong className="font-medium">până la 3 poze</strong> din Google în
-                                    Supabase Storage. Debifat: cel mult{" "}
+                                    Încarcă <strong className="font-medium">până la 3 poze</strong> din Google în R2.
+                                    Debifat (implicit): cel mult{" "}
                                     <strong className="font-medium">1</strong> poză pentru fiecare loc nou (cu Google
                                     ID).
                                 </span>

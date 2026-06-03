@@ -1,6 +1,9 @@
 import { verifyToken } from "@/lib/auth";
-import { getSupabaseStorageEnv } from "@/lib/supabase-storage-env";
-import { createClient } from "@supabase/supabase-js";
+import {
+    buildManualPlaceImageR2Key,
+    extensionFromMime,
+    uploadBufferToR2,
+} from "@/lib/r2/upload-place-photo-to-r2";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -10,11 +13,8 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 function extFromMime(mime: string): string {
-    if (mime === "image/jpeg") return "jpg";
-    if (mime === "image/png") return "png";
-    if (mime === "image/webp") return "webp";
-    if (mime === "image/gif") return "gif";
-    return "bin";
+    const e = extensionFromMime(mime);
+    return e.startsWith(".") ? e.slice(1) : e;
 }
 
 function isSafeSlug(s: string): boolean {
@@ -29,32 +29,6 @@ export async function POST(req: Request) {
             return NextResponse.json(
                 { success: false, message: "Unauthorized", data: null },
                 { status: 401 },
-            );
-        }
-
-        const { url: supabaseUrl, serviceRoleKey: serviceKey } = getSupabaseStorageEnv();
-        const bucket =
-            process.env["SUPABASE_PLACE_IMAGES_BUCKET"]?.trim() || "places";
-
-        if (!supabaseUrl) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    message: "Storage not configured: missing NEXT_PUBLIC_SUPABASE_URL",
-                    data: null,
-                },
-                { status: 503 },
-            );
-        }
-        if (!serviceKey) {
-            return NextResponse.json(
-                {
-                    success: false,
-                    message:
-                        "Storage not configured: missing SUPABASE_SERVICE_ROLE_KEY (server-only; restart dev after adding it)",
-                    data: null,
-                },
-                { status: 503 },
             );
         }
 
@@ -94,43 +68,31 @@ export async function POST(req: Request) {
         }
 
         const ext = extFromMime(mime);
-        const objectPath = `${city_slug}/${category_slug}/${place_id}.${ext}`;
-
-        const supabase = createClient(supabaseUrl, serviceKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
+        const objectKey = buildManualPlaceImageR2Key({
+            city_slug,
+            category_slug,
+            place_id,
+            extension: ext,
         });
 
         const buffer = Buffer.from(await file.arrayBuffer());
 
-        console.log("Supabase URL:", supabaseUrl);
-        console.log("Service key exists:", serviceKey ? "YES" : "NO");
-        console.log("Using bucket:", bucket);
-        console.log("Upload path:", objectPath);
-
-        const { error: uploadError } = await supabase.storage.from(bucket).upload(objectPath, buffer, {
+        const uploaded = await uploadBufferToR2({
+            body: buffer,
             contentType: mime,
-            upsert: true,
+            key: objectKey,
         });
-
-        if (uploadError) {
-            console.error("Supabase storage upload error FULL:", uploadError);
-            return NextResponse.json(
-                { success: false, message: uploadError.message || "Upload failed", data: null },
-                { status: 500 },
-            );
-        }
-
-        const { data: pub } = supabase.storage.from(bucket).getPublicUrl(objectPath);
 
         return NextResponse.json({
             success: true,
             message: "Image uploaded",
-            data: { publicUrl: pub.publicUrl, path: objectPath },
+            data: { publicUrl: uploaded.publicUrl, path: objectKey },
         });
     } catch (error) {
+        const msg = error instanceof Error ? error.message : "Upload failed";
         console.error("upload-place-image:", error);
         return NextResponse.json(
-            { success: false, message: "Upload failed", data: null },
+            { success: false, message: msg.includes("Missing required env") ? "R2 not configured" : "Upload failed", data: null },
             { status: 500 },
         );
     }

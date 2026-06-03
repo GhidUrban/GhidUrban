@@ -6,7 +6,7 @@
  *   npx tsx scripts/bulk-google-import.ts --city=cluj-napoca --all-categories
  *   npx tsx scripts/bulk-google-import.ts --city=iasi --no-photos
  *
- * Default: --target=60 per category; after each insert uploads up to 3 photos to Storage when available.
+ * Default: --target=60 per category; after each insert uploads 1 photo to R2 (--max-photos=3 for more).
  *
  * Env: GOOGLE_MAPS_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
@@ -418,7 +418,7 @@ async function main() {
     const dry = hasFlag("--dry-run");
     const pauseMs = Math.max(0, parseIntArg("--between-categories-ms", 2500));
     const syncPhotos = !hasFlag("--no-photos");
-    const maxPhotos = Math.min(3, Math.max(0, parseIntArg("--max-photos", 3)));
+    const maxPhotos = Math.min(3, Math.max(0, parseIntArg("--max-photos", 1)));
     const photoDelayMs = Math.max(0, parseIntArg("--photo-delay-ms", 180));
 
     if (!city) {

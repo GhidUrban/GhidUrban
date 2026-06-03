@@ -30,7 +30,7 @@ function getCategoryPlaceholder(categorySlug: string): string {
 
 /**
  * Priority:
- * 1) image_storage_path (Supabase Storage — our own copy)
+ * 1) image_storage_path (stored copy on R2 / CDN)
  * 2) matched + google_photo_uri (Google CDN)
  * 3) non-empty image field (legacy/manual)
  * 4) category / generic placeholder
