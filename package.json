@@ -15,6 +15,7 @@
     "photos:google-to-storage": "npx tsx scripts/google-photos-to-supabase-storage.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1059.0",
     "@supabase/supabase-js": "^2.99.3",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.1",
