@@ -2,9 +2,10 @@
  * Batch download Google Place photos → Cloudflare R2 (via uploadGooglePhotosForPlace).
  *
  * Usage:
- *   npx tsx scripts/google-photos-to-supabase-storage.ts --city=bucuresti --limit=30
- *   npx tsx scripts/google-photos-to-supabase-storage.ts --max-photos=3 --force  (optional: 3 photos)
- *   npx tsx scripts/google-photos-to-supabase-storage.ts --google-status=both
+ *   npx tsx scripts/google-photos-to-r2.ts --city=bucuresti --limit=30
+ *   npx tsx scripts/google-photos-to-r2.ts --max-photos=3 --force  (optional: 3 photos)
+ *   npx tsx scripts/google-photos-to-r2.ts --google-status=both
+ *   (alias: npm run photos:google-to-storage)
  *
  * Env (.env.local): GOOGLE_MAPS_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
  *   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL

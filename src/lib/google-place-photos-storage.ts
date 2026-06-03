@@ -1,3 +1,7 @@
+/**
+ * Google Places photo download + upload to Cloudflare R2.
+ * Writes public R2 URLs to places.image_storage_path and place_photos.storage_path.
+ */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
     buildPlacePhotoR2Key,
@@ -99,8 +103,6 @@ export async function uploadGooglePhotosForPlace(
         photoDelayMs: number;
         /** Re-upload even when places.image_storage_path is already an R2 URL. */
         force?: boolean;
-        /** Ignored — kept for backward compatibility with older callers. */
-        storageBucket?: string;
     },
 ): Promise<UploadGooglePlacePhotosResult> {
     const {

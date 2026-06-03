@@ -12,7 +12,8 @@
     "sync:google:hours": "npx tsx scripts/sync-google-hours-city.ts",
     "seed:ro-cities": "npx tsx scripts/seed-ro-major-cities.ts",
     "import:google:bulk": "npx tsx scripts/bulk-google-import.ts",
-    "photos:google-to-storage": "npx tsx scripts/google-photos-to-supabase-storage.ts"
+    "photos:google-to-r2": "npx tsx scripts/google-photos-to-r2.ts",
+    "photos:google-to-storage": "npx tsx scripts/google-photos-to-r2.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1059.0",

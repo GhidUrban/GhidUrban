@@ -803,7 +803,7 @@ export default function AdminImportPage() {
                                     {(importSummary.inserts_photo_failed ?? 0) > 0 ? (
                                         <p className="text-amber-800">
                                             Unele locuri noi sunt salvate dar pozele nu au putut fi încărcate pentru
-                                            toate; verifică cheia Google și bucket-ul Storage în mediu.
+                                            toate; verifică cheia Google și variabilele R2 în mediu.
                                         </p>
                                     ) : null}
                                 </div>
@@ -861,7 +861,7 @@ function FixMissingPhotosSection({ citiesForSelect }: { citiesForSelect: AdminCi
             <h2 className="mb-2 text-base font-semibold text-amber-900">Repara poze lipsa</h2>
             <p className="mb-4 text-sm text-amber-800">
                 Descarca poze din Google Places API pentru locurile care nu au imagine salvata in
-                Supabase Storage (image_storage_path = null) dar au Google match.
+                Fără poză pe R2 (image_storage_path = null) dar au Google match.
             </p>
 
             <div className="flex flex-wrap items-end gap-3">

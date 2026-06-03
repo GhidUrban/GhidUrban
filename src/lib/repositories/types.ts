@@ -77,7 +77,7 @@ export type PlaceListingRow = {
     updated_at: string | null;
 };
 
-/** Supabase Storage public URL (or any absolute URL) for gallery thumbs. */
+/** Public image URL (R2 CDN) for gallery thumbs. */
 export type PlacePhotoRow = {
     place_id: string;
     city_slug: string;
@@ -257,7 +257,7 @@ export type GoogleMatchReviewListFilters = {
     search?: string;
     city_slug?: string;
     category_slug?: string;
-    /** Only rows where places.image_storage_path is empty (Supabase cover not set). */
+    /** Only rows where places.image_storage_path is empty (no R2 cover yet). */
     missing_storage_image?: boolean;
 };
 

@@ -1,6 +1,6 @@
 /**
  * Fix missing photos: auto-match with Google Places + download photos
- * for places that have no image_storage_path in Supabase Storage.
+ * for places that have no image_storage_path (cover not on R2 yet).
  *
  * Usage:
  *   npx tsx scripts/fix-missing-photos.ts
