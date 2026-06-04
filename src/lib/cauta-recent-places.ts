@@ -1,3 +1,5 @@
+import { isLegacySupabasePlacesStorageUrl } from "@/lib/resolve-place-image-src";
+
 export const RECENT_PLACES_STORAGE_KEY = "ghidurban-cauta-recent-places";
 const MAX_ITEMS = 5;
 
@@ -47,8 +49,11 @@ function safeRead(): RecentPlaceVisit[] {
             const category_slug = typeof r.category_slug === "string" ? r.category_slug : "";
             const category_name = typeof r.category_name === "string" ? r.category_name : "";
             const href = typeof r.href === "string" ? r.href : "";
-            const image =
+            let image =
                 typeof r.image === "string" ? r.image : undefined;
+            if (image !== undefined && isLegacySupabasePlacesStorageUrl(image)) {
+                image = undefined;
+            }
             const google_match_status =
                 typeof r.google_match_status === "string"
                     ? r.google_match_status.trim() || null
@@ -57,8 +62,11 @@ function safeRead(): RecentPlaceVisit[] {
                 typeof r.google_photo_uri === "string"
                     ? r.google_photo_uri.trim() || null
                     : null;
-            const image_url =
+            let image_url =
                 typeof r.image_url === "string" && r.image_url.length > 0 ? r.image_url : null;
+            if (image_url && isLegacySupabasePlacesStorageUrl(image_url)) {
+                image_url = null;
+            }
             const address = typeof r.address === "string" ? r.address : null;
             let rating: number | null = null;
             if (typeof r.rating === "number" && Number.isFinite(r.rating)) {

@@ -2,6 +2,29 @@
 
 export const PLACE_IMAGE_PLACEHOLDER = "/images/place-placeholder.jpg";
 
+/** Deleted Supabase Storage bucket — do not load as a public thumbnail. */
+export function isLegacySupabasePlacesStorageUrl(url: string | null | undefined): boolean {
+    const trimmed = url?.trim() ?? "";
+    if (!trimmed) return false;
+    return /supabase\.co\/storage\/v1\/object\/public\/places\//i.test(trimmed);
+}
+
+function isMissingPublicPlaceholderPath(url: string): boolean {
+    const trimmed = url.trim();
+    return (
+        trimmed === PLACE_IMAGE_PLACEHOLDER || trimmed.startsWith("/images/placeholders/")
+    );
+}
+
+/** Remote/http URLs safe to try in `<img>` / Next Image (no dead Supabase or missing local JPG). */
+export function isDisplayablePlaceImageUrl(url: string | null | undefined): boolean {
+    const trimmed = url?.trim() ?? "";
+    if (!trimmed) return false;
+    if (isLegacySupabasePlacesStorageUrl(trimmed)) return false;
+    if (isMissingPublicPlaceholderPath(trimmed)) return false;
+    return true;
+}
+
 export type ResolvePlaceImageInput = {
   image?: string | null;
   image_storage_path?: string | null;
@@ -45,7 +68,7 @@ export function resolvePlaceImageSrc(place: ResolvePlaceImageInput): string {
     return googleUri;
   }
   const img = place.image?.trim() ?? "";
-  if (img && img !== PLACE_IMAGE_PLACEHOLDER) {
+  if (img && img !== PLACE_IMAGE_PLACEHOLDER && !isLegacySupabasePlacesStorageUrl(img)) {
     return img;
   }
   return getCategoryPlaceholder(place.category_slug ?? "");
@@ -63,15 +86,19 @@ export function resolveRecentVisitImageSrc(visit: RecentVisitImageInput): string
     visit.google_match_status != null ||
     visit.google_photo_uri != null;
   if (hasRaw) {
+    const rawImage =
+      typeof visit.image === "string" && !isLegacySupabasePlacesStorageUrl(visit.image)
+        ? visit.image
+        : "";
     return resolvePlaceImageSrc({
-      image: typeof visit.image === "string" ? visit.image : "",
+      image: rawImage,
       google_match_status: visit.google_match_status ?? null,
       google_photo_uri: visit.google_photo_uri ?? null,
       category_slug: visit.category_slug,
     });
   }
   const leg = visit.image_url?.trim();
-  if (leg) {
+  if (leg && !isLegacySupabasePlacesStorageUrl(leg)) {
     return leg;
   }
   return resolvePlaceImageSrc({

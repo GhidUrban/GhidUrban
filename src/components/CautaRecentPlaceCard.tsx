@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { RecentPlaceVisit } from "@/lib/cauta-recent-places";
 import {
-  PLACE_IMAGE_PLACEHOLDER,
+  isDisplayablePlaceImageUrl,
   resolveRecentVisitImageSrc,
 } from "@/lib/resolve-place-image-src";
 
@@ -12,6 +12,15 @@ type CautaRecentPlaceCardProps = {
   visit: RecentPlaceVisit;
   disabled?: boolean;
 };
+
+function RecentCardImageFallback() {
+  return (
+    <div
+      className="h-full w-full bg-gradient-to-br from-gray-100 to-gray-200/90"
+      aria-hidden
+    />
+  );
+}
 
 /** Compact tile for „Vizitate recent” on /cauta. */
 export function CautaRecentPlaceCard({
@@ -31,7 +40,7 @@ export function CautaRecentPlaceCard({
     setLoadFailed(false);
   }, [resolved]);
 
-  const src = loadFailed ? PLACE_IMAGE_PLACEHOLDER : resolved;
+  const showCssFallback = loadFailed || !isDisplayablePlaceImageUrl(resolved);
   const showRating =
     typeof visit.rating === "number" &&
     Number.isFinite(visit.rating) &&
@@ -51,14 +60,18 @@ export function CautaRecentPlaceCard({
       aria-disabled={disabled ? true : undefined}
     >
       <div className="relative h-20 w-full shrink-0 overflow-hidden rounded-t-xl bg-gray-100">
-        {/* eslint-disable-next-line @next/next/no-img-element -- same resolved URLs as PlaceImage */}
-        <img
-          src={src}
-          alt=""
-          className="h-full w-full object-cover"
-          loading="lazy"
-          onError={() => setLoadFailed(true)}
-        />
+        {showCssFallback ? (
+          <RecentCardImageFallback />
+        ) : (
+          /* eslint-disable-next-line @next/next/no-img-element -- same resolved URLs as PlaceImage */
+          <img
+            src={resolved}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={() => setLoadFailed(true)}
+          />
+        )}
       </div>
       <div className="flex flex-col px-2 py-1">
         <span className="block min-h-5 min-w-0 truncate whitespace-nowrap text-left text-xs font-medium leading-5 text-gray-900">

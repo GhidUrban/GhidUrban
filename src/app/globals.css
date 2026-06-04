@@ -3,6 +3,13 @@
 :root {
   --background: #f8fafc;
   --foreground: #171717;
+  /* GhidUrban public UI tokens */
+  --gu-brand: #008fa8;
+  --gu-brand-hover: #007a90;
+  --gu-surface: #f1f5f9;
+  --gu-card-border: rgb(0 0 0 / 0.08);
+  --gu-radius-card: 1rem;
+  --gu-radius-control: 0.75rem;
 }
 
 @theme inline {
@@ -17,13 +24,14 @@
   :root {
     --background: #f1f5f9;
     --foreground: #171717;
+    --gu-surface: #f1f5f9;
   }
 }
 
 body {
-  background: var(--background);
+  background: var(--gu-surface);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
 /* Avoid iOS/Android blue tap flash on interactive UI controls. */

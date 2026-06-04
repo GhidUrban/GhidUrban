@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
 import { CategoryPlacesSection } from "@/components/CategoryPlacesSection";
+import { PageShell } from "@/components/ui/PageShell";
 import { apiGet } from "@/lib/internal-api";
 import { slugToTitle } from "@/lib/slug";
 import { notFound } from "next/navigation";
@@ -59,20 +60,18 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
     const places = placesResponse.data.places;
 
     return (
-        <main className="min-h-screen bg-gray-100 py-4">
-            <div className="mx-auto max-w-4xl px-4">
-                <OraseFlowPageHeader
-                    items={[
-                        { label: "Orașe", href: "/orase" },
-                        { label: cityName, href: `/orase/${slug}` },
-                        { label: categoryName }
-                    ]}
-                    title={categoryName}
-                    titleClassName="max-w-2xl"
-                />
+        <PageShell width="normal">
+            <OraseFlowPageHeader
+                items={[
+                    { label: "Orașe", href: "/orase" },
+                    { label: cityName, href: `/orase/${slug}` },
+                    { label: categoryName }
+                ]}
+                title={categoryName}
+                titleClassName="max-w-2xl"
+            />
 
-                <CategoryPlacesSection places={[...places]} slug={slug} category={category} />
-            </div>
-        </main>
+            <CategoryPlacesSection places={[...places]} slug={slug} category={category} />
+        </PageShell>
     );
 }

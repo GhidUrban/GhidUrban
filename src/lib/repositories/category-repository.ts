@@ -46,6 +46,35 @@ export async function isValidCategorySlug(city: string, category: string): Promi
     return categoryExistsInSupabase(city, category);
 }
 
+export type SearchIndexCategoryRow = {
+    city_slug: string;
+    category_slug: string;
+    category_name: string;
+};
+
+export async function getAllCategoriesForSearchIndexFromSupabase(): Promise<SearchIndexCategoryRow[]> {
+    const { data, error } = await supabase
+        .from("categories")
+        .select("city_slug, category_slug, category_name");
+
+    if (error) {
+        throw new Error(`Failed to fetch categories for search index: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => {
+        const r = row as {
+            city_slug: string;
+            category_slug: string;
+            category_name: string | null;
+        };
+        return {
+            city_slug: r.city_slug,
+            category_slug: r.category_slug,
+            category_name: r.category_name ?? "",
+        };
+    });
+}
+
 export async function getCategoriesByCityFromSupabase(citySlug: string) {
     const { data, error } = await supabase
         .from("categories")

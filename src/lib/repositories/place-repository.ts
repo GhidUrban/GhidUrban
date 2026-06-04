@@ -25,8 +25,21 @@ export function placeJoinKey(r: { place_id: string; city_slug: string; category_
     return `${r.place_id}|||${r.city_slug}|||${r.category_slug}`;
 }
 
+export type FetchPlaceMapsOptions = {
+    /** When true, log and return partial/empty map instead of throwing. */
+    optional?: boolean;
+};
+
+const SEARCH_INDEX_PLACES_PAGE_SIZE = 1000;
+
+export type PlaceSearchIndexBulkRow = PlaceSearchIndexRow & {
+    city_slug: string;
+    category_slug: string;
+};
+
 export async function fetchPlaceGoogleDataMap(
     keys: { place_id: string; city_slug: string; category_slug: string }[],
+    opts?: FetchPlaceMapsOptions,
 ): Promise<Map<string, PlaceGoogleDataRow>> {
     const out = new Map<string, PlaceGoogleDataRow>();
     if (keys.length === 0) return out;
@@ -47,7 +60,16 @@ export async function fetchPlaceGoogleDataMap(
             .eq("city_slug", citySlug)
             .eq("category_slug", categorySlug)
             .in("place_id", placeIds);
-        if (error) throw new Error("Failed to fetch place_google_data");
+        if (error) {
+            if (opts?.optional) {
+                console.warn(
+                    `[SearchIndex] place_google_data skipped (${citySlug}/${categorySlug}):`,
+                    error.message,
+                );
+                continue;
+            }
+            throw new Error("Failed to fetch place_google_data");
+        }
         for (const row of data ?? []) {
             const r = row as PlaceGoogleDataRow;
             out.set(placeJoinKey(r), r);
@@ -58,6 +80,7 @@ export async function fetchPlaceGoogleDataMap(
 
 export async function fetchPlaceListingsMap(
     keys: { place_id: string; city_slug: string; category_slug: string }[],
+    opts?: FetchPlaceMapsOptions,
 ): Promise<Map<string, PlaceListingRow>> {
     const out = new Map<string, PlaceListingRow>();
     if (keys.length === 0) return out;
@@ -78,13 +101,85 @@ export async function fetchPlaceListingsMap(
             .eq("city_slug", citySlug)
             .eq("category_slug", categorySlug)
             .in("place_id", placeIds);
-        if (error) throw new Error("Failed to fetch place_listings");
+        if (error) {
+            if (opts?.optional) {
+                console.warn(
+                    `[SearchIndex] place_listings skipped (${citySlug}/${categorySlug}):`,
+                    error.message,
+                );
+                continue;
+            }
+            throw new Error("Failed to fetch place_listings");
+        }
         for (const row of data ?? []) {
             const r = row as PlaceListingRow;
             out.set(placeJoinKey(r), r);
         }
     }
     return out;
+}
+
+/** All available places for global search (paginated; no listings/google joins). */
+export async function getAllPlacesSearchIndexRowsFromSupabase(): Promise<PlaceSearchIndexBulkRow[]> {
+    const all: PlaceSearchIndexBulkRow[] = [];
+    let offset = 0;
+
+    while (true) {
+        const { data, error } = await supabase
+            .from("places")
+            .select(
+                "place_id, city_slug, category_slug, name, latitude, longitude, address, image, image_storage_path, rating",
+            )
+            .eq("status", "available")
+            .order("city_slug", { ascending: true })
+            .order("category_slug", { ascending: true })
+            .order("name", { ascending: true })
+            .range(offset, offset + SEARCH_INDEX_PLACES_PAGE_SIZE - 1);
+
+        if (error) {
+            throw new Error(`Failed to fetch places for search index: ${error.message}`);
+        }
+
+        const rows = (data ?? []) as Array<{
+            place_id: string;
+            city_slug: string;
+            category_slug: string;
+            name: string;
+            latitude: number | null;
+            longitude: number | null;
+            address: string | null;
+            image: string | null;
+            image_storage_path?: string | null;
+            rating: number | null;
+        }>;
+
+        for (const r of rows) {
+            all.push({
+                place_id: r.place_id,
+                city_slug: r.city_slug,
+                category_slug: r.category_slug,
+                name: r.name,
+                latitude: r.latitude,
+                longitude: r.longitude,
+                address: r.address,
+                image: r.image_storage_path ?? r.image,
+                rating: r.rating,
+                featured: null,
+                featured_until: null,
+                plan_type: null,
+                plan_expires_at: null,
+                google_match_status: null,
+                google_photo_uri: null,
+            });
+        }
+
+        if (rows.length < SEARCH_INDEX_PLACES_PAGE_SIZE) {
+            break;
+        }
+        offset += SEARCH_INDEX_PLACES_PAGE_SIZE;
+    }
+
+    return all;
 }
 
 export function normalizeCanonicalGooglePlaceId(
@@ -249,7 +344,8 @@ export async function getPlacesSearchIndexRowsFromSupabase(
     }>;
     const keys = rows.map((r) => ({ place_id: r.place_id, city_slug: r.city_slug, category_slug: r.category_slug }));
     const [gdMap, liMap] = await Promise.all([
-        fetchPlaceGoogleDataMap(keys), fetchPlaceListingsMap(keys),
+        fetchPlaceGoogleDataMap(keys, { optional: true }),
+        fetchPlaceListingsMap(keys, { optional: true }),
     ]);
     return rows.map((r) => {
         const k = placeJoinKey(r);

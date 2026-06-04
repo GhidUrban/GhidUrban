@@ -3,11 +3,9 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { Place } from "@/data/places";
-import {
-  PLACE_IMAGE_PLACEHOLDER,
-  resolvePlaceImageSrc,
-  type PlaceImageFields,
-} from "@/lib/place-image";
+import type { PlaceImageFields } from "@/lib/place-image";
+import { resolvePlaceImageSrc } from "@/lib/place-image";
+import { isDisplayablePlaceImageUrl } from "@/lib/resolve-place-image-src";
 
 type PlaceImageProps = {
   place: Pick<Place, "name"> & PlaceImageFields;
@@ -18,6 +16,15 @@ type PlaceImageProps = {
   className?: string;
   priority?: boolean;
 };
+
+function PlaceImageCssFallback({ className }: { className?: string }) {
+  return (
+    <div
+      className={`bg-gradient-to-br from-gray-100 to-gray-200/90 ${className ?? ""}`}
+      aria-hidden
+    />
+  );
+}
 
 export function PlaceImage({
   place,
@@ -40,12 +47,16 @@ export function PlaceImage({
     setLoadFailed(false);
   }, [resolved]);
 
-  const src = loadFailed ? PLACE_IMAGE_PLACEHOLDER : resolved;
-  const isRemote = src.startsWith("http://") || src.startsWith("https://");
+  const showCssFallback = loadFailed || !isDisplayablePlaceImageUrl(resolved);
+  if (showCssFallback) {
+    return <PlaceImageCssFallback className={className} />;
+  }
+
+  const isRemote = resolved.startsWith("http://") || resolved.startsWith("https://");
 
   return (
     <Image
-      src={src}
+      src={resolved}
       alt={place.name}
       width={width}
       height={height}

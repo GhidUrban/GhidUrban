@@ -15,7 +15,6 @@ import {
 } from "@/lib/cauta-recent-places";
 import { highlightPlaceTitle } from "@/lib/highlight-place-title";
 import {
-    searchCategoriesGlobal,
     searchCitiesGlobal,
     searchPlacesGlobal,
     type GlobalSearchOutcome,
@@ -30,6 +29,7 @@ import {
 } from "@/lib/session-user-location";
 import { CautaRecentVisitedRow } from "@/components/CautaRecentVisitedRow";
 import { PublicPlaceCard } from "@/components/PublicPlaceCard";
+import { SearchField } from "@/components/ui/SearchField";
 import { CITY_HUB_CATEGORY_ROWS, topPlacesPerCategoriesForCity } from "@/lib/city-search-spotlight";
 
 function CityResultHeader({
@@ -128,34 +128,58 @@ function CitySpotlightStrips({
     );
 }
 
-/** Pills categorii pentru un oraș. */
-function CityCategoryPillsSection({
-    citySlug,
-    cityName,
+type DiscoveryCategoryChip = {
+    category_slug: string;
+    category_name: string;
+};
+
+/** Rând compact de categorii sub câmpul de căutare. */
+function CautaDiscoveryPillsRow({
     categories,
+    citySlug,
+    disabled,
+    chipClassName,
+    onSearchCategory,
 }: {
-    citySlug: string;
-    cityName: string;
-    categories: GlobalSearchCategory[];
+    categories: DiscoveryCategoryChip[];
+    citySlug: string | null;
+    disabled: boolean;
+    chipClassName: (categorySlug: string) => string;
+    onSearchCategory: (categoryName: string) => void;
 }) {
     if (categories.length === 0) return null;
     return (
-        <div className="mt-8 border-t border-black/10 pt-6">
-            <h3 className="mb-3 text-sm font-semibold text-gray-800">
-                Explorează după categorie în {cityName}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-                {categories.map((cat) => (
-                    <Link
-                        key={cat.category_slug}
-                        href={`/orase/${citySlug}/${cat.category_slug}`}
-                        className="inline-flex rounded-full border border-black/10 bg-white px-3 py-1.5 text-sm text-[#0B2A3C] shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.98]"
-                    >
-                        {cat.category_name}
-                    </Link>
-                ))}
+        <nav aria-label="Categorii rapide" className="mx-auto mb-4 w-full max-w-2xl">
+            <div className="flex flex-wrap justify-center gap-2">
+                {categories.map((cat) =>
+                    citySlug ? (
+                        <Link
+                            key={cat.category_slug}
+                            href={`/orase/${citySlug}/${cat.category_slug}`}
+                            className={chipClassName(cat.category_slug)}
+                        >
+                            {cat.category_name}
+                        </Link>
+                    ) : (
+                        <button
+                            key={cat.category_slug}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => onSearchCategory(cat.category_name)}
+                            className={chipClassName(cat.category_slug)}
+                        >
+                            {cat.category_name}
+                        </button>
+                    ),
+                )}
+                <Link
+                    href="/orase"
+                    className="inline-flex items-center rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs text-gray-600 transition-[color,background-color,border-color,transform] duration-100 hover:border-black/20 hover:bg-gray-100/70 hover:text-gray-800 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/50 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100"
+                >
+                    Orașe
+                </Link>
             </div>
-        </div>
+        </nav>
     );
 }
 
@@ -334,21 +358,6 @@ export function GlobalSearchClient({
         );
     }, [activeCoords, index.places]);
 
-    const quickSuggestions = [
-        { label: "Cafenele", slug: "cafenele" },
-        { label: "Restaurante", slug: "restaurante" },
-        { label: "Cazare", slug: "cazare" },
-    ] as const;
-
-    function runDiscoveryShortcut(categorySlug: string) {
-        if (!activeCitySlug) return;
-        if (isRoutePending) return;
-        setPendingDiscoverySlug(categorySlug);
-        startRouteTransition(() => {
-            router.push(`/orase/${activeCitySlug}/${categorySlug}`);
-        });
-    }
-
     function discoveryClassName(categorySlug: string): string {
         const isPendingChip = isRoutePending && pendingDiscoverySlug === categorySlug;
         return `inline-flex items-center rounded-full border px-3 py-1.5 text-xs transition-[color,background-color,border-color,transform] duration-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/50 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-100 ${
@@ -394,11 +403,6 @@ export function GlobalSearchClient({
         () => searchCitiesGlobal(index.cities, committedQuery),
         [index.cities, committedQuery],
     );
-    const categoryResults = useMemo(
-        () => searchCategoriesGlobal(index.categories, committedQuery),
-        [index.categories, committedQuery],
-    );
-
     const cityHubActive = pageMode === "results" && cityResults.length === 1;
     const primaryCitySlug = cityHubActive ? cityResults[0]!.slug : null;
     const primaryCityName = cityHubActive ? cityResults[0]!.name : "";
@@ -408,18 +412,6 @@ export function GlobalSearchClient({
         const slugs = CITY_HUB_CATEGORY_ROWS.map((row) => row.slug);
         return topPlacesPerCategoriesForCity(index.places, primaryCitySlug, slugs, 4);
     }, [index.places, primaryCitySlug]);
-
-    const categoriesForHubCity = useMemo(() => {
-        if (!primaryCitySlug) return [];
-        const dedup = new Map<string, GlobalSearchCategory>();
-        for (const row of index.categories) {
-            if (row.city_slug !== primaryCitySlug) continue;
-            dedup.set(row.category_slug, row);
-        }
-        return [...dedup.values()].sort((a, b) =>
-            a.category_name.localeCompare(b.category_name, "ro"),
-        );
-    }, [index.categories, primaryCitySlug]);
 
     // Orașul primului loc din rezultate (intenționat simplu pentru spotlight după „Locuri”).
     const contextCitySlug =
@@ -439,17 +431,40 @@ export function GlobalSearchClient({
         return topPlacesPerCategoriesForCity(index.places, contextCitySlug, slugs, 4);
     }, [index.places, contextCitySlug]);
 
-    const categoriesForContextCity = useMemo(() => {
-        if (!contextCitySlug) return [];
-        const dedup = new Map<string, GlobalSearchCategory>();
+    const pillCitySlug = useMemo(() => {
+        if (activeCitySlug) return activeCitySlug;
+        if (cityHubActive && primaryCitySlug) return primaryCitySlug;
+        if (contextCitySlug) return contextCitySlug;
+        return null;
+    }, [activeCitySlug, cityHubActive, primaryCitySlug, contextCitySlug]);
+
+    const topDiscoveryCategories = useMemo((): DiscoveryCategoryChip[] => {
+        if (pillCitySlug) {
+            const dedup = new Map<string, DiscoveryCategoryChip>();
+            for (const row of index.categories) {
+                if (row.city_slug !== pillCitySlug) continue;
+                dedup.set(row.category_slug, {
+                    category_slug: row.category_slug,
+                    category_name: row.category_name,
+                });
+            }
+            return [...dedup.values()].sort((a, b) =>
+                a.category_name.localeCompare(b.category_name, "ro"),
+            );
+        }
+        const dedup = new Map<string, DiscoveryCategoryChip>();
         for (const row of index.categories) {
-            if (row.city_slug !== contextCitySlug) continue;
-            dedup.set(row.category_slug, row);
+            if (!dedup.has(row.category_slug)) {
+                dedup.set(row.category_slug, {
+                    category_slug: row.category_slug,
+                    category_name: row.category_name,
+                });
+            }
         }
         return [...dedup.values()].sort((a, b) =>
             a.category_name.localeCompare(b.category_name, "ro"),
         );
-    }, [index.categories, contextCitySlug]);
+    }, [index.categories, pillCitySlug]);
 
     return (
         <>
@@ -466,46 +481,31 @@ export function GlobalSearchClient({
                         commitQuery(inputValue);
                     }}
                 >
-                    <div className="relative rounded-xl focus-within:ring-2 focus-within:ring-[#2EC4B6]/25">
-                        <svg
-                            className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden
-                        >
-                            <circle cx="11" cy="11" r="8" />
-                            <path d="m21 21-4.3-4.3" />
-                        </svg>
-                        <input
-                            ref={inputRef}
-                            id="global-search"
-                            type="search"
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            placeholder="Caută oraș, categorie sau locație..."
-                            className="h-11 w-full appearance-none rounded-xl border border-black/10 bg-white pl-10 pr-10 text-[15px] text-[#0B2A3C] caret-[#0B2A3C] outline-none shadow-none transition-colors duration-200 placeholder:text-gray-400 focus:border-black/10 focus:outline-none focus:ring-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none md:text-sm"
-                            autoComplete="off"
-                            enterKeyHint="search"
-                            aria-busy={showSpinner}
-                        />
-                        {showSpinner ? (
-                            <span className="pointer-events-none absolute inset-y-0 right-3 inline-flex items-center">
-                                <span
-                                    className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400/80 border-t-[#0B2A3C]"
-                                    aria-hidden
-                                />
-                            </span>
-                        ) : null}
-                    </div>
+                    <SearchField
+                        inputRef={inputRef}
+                        id="global-search"
+                        type="search"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Caută oraș, categorie sau locație..."
+                        loading={showSpinner}
+                        radius="xl"
+                        variant="standalone"
+                        aria-busy={showSpinner}
+                    />
                 </form>
                 {showSpinner && showSearchingText ? (
                     <p className="mt-2 text-xs text-gray-400">Se caută...</p>
                 ) : null}
             </div>
+
+            <CautaDiscoveryPillsRow
+                categories={topDiscoveryCategories}
+                citySlug={pillCitySlug}
+                disabled={isRoutePending}
+                chipClassName={discoveryClassName}
+                onSearchCategory={(label) => commitQuery(label)}
+            />
 
             {pageMode === "results" ? (
                 <div className={`transition-opacity duration-150 ${resultsOpacityClass}`}>
@@ -588,11 +588,6 @@ export function GlobalSearchClient({
                                 spotlightByCategory={spotlightForContextCity}
                                 activeCoords={activeCoords}
                             />
-                            <CityCategoryPillsSection
-                                citySlug={contextCitySlug}
-                                cityName={contextCityName}
-                                categories={categoriesForContextCity}
-                            />
                         </section>
                     ) : null}
 
@@ -605,11 +600,6 @@ export function GlobalSearchClient({
                             <CitySpotlightStrips
                                 spotlightByCategory={spotlightByCategory}
                                 activeCoords={activeCoords}
-                            />
-                            <CityCategoryPillsSection
-                                citySlug={primaryCitySlug}
-                                cityName={primaryCityName}
-                                categories={categoriesForHubCity}
                             />
                         </section>
                     ) : cityResults.length > 0 ? (
@@ -631,31 +621,6 @@ export function GlobalSearchClient({
                             </ul>
                         </section>
                     ) : null}
-
-                    {!cityHubActive && categoryResults.length > 0 ? (
-                        <section className="mx-auto mb-6 max-w-4xl" aria-labelledby="cauta-rez-categorii">
-                            <h2 id="cauta-rez-categorii" className="mb-2 text-sm font-semibold text-gray-800">
-                                Categorii în oraș
-                            </h2>
-                            <ul className="space-y-2" role="list">
-                                {categoryResults.map((row) => (
-                                    <li key={`${row.city_slug}:${row.category_slug}`}>
-                                        <Link
-                                            href={`/orase/${row.city_slug}/${row.category_slug}`}
-                                            className="flex flex-col gap-0.5 rounded-xl border border-black/10 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-gray-50 active:scale-[0.99]"
-                                        >
-                                            <span className="text-[15px] font-medium text-[#0B2A3C]">
-                                                {highlightPlaceTitle(row.category_name, normalizedQuery)}
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                {highlightPlaceTitle(row.city_name, normalizedQuery)}
-                                            </span>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        </section>
-                    ) : null}
                 </div>
             ) : null}
 
@@ -664,19 +629,6 @@ export function GlobalSearchClient({
                     <p className="text-center text-base font-medium tracking-tight text-gray-700">
                         În apropiere
                     </p>
-                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                        {quickSuggestions.map((suggestion) => (
-                            <button
-                                key={suggestion.slug}
-                                type="button"
-                                onClick={() => runDiscoveryShortcut(suggestion.slug)}
-                                disabled={isRoutePending}
-                                className={discoveryClassName(suggestion.slug)}
-                            >
-                                {suggestion.label}
-                            </button>
-                        ))}
-                    </div>
                     {inputEmpty && recentPlaces.length > 0 ? (
                         <CautaRecentVisitedRow items={recentPlaces} disabled={isLoadingFeedback} />
                     ) : null}
@@ -691,12 +643,18 @@ export function GlobalSearchClient({
 
             {pageMode === "results" &&
                 cityResults.length === 0 &&
-                categoryResults.length === 0 &&
                 places.length === 0 && (
-                    <div className={`transition-opacity duration-150 ${resultsOpacityClass}`}>
-                        <p className="text-center text-sm text-gray-500">
-                            {`Nu am găsit rezultate pentru „${normalizedQuery}”.`}
-                        </p>
+                    <div
+                        className={`mx-auto mt-2 max-w-lg transition-opacity duration-150 ${resultsOpacityClass}`}
+                    >
+                        <div className="rounded-2xl border border-black/10 bg-white px-4 py-5 text-center shadow-sm sm:px-5">
+                            <p className="text-sm font-medium text-gray-800">
+                                {`Nu am găsit rezultate pentru „${normalizedQuery}”.`}
+                            </p>
+                            <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                                Încearcă un nume de oraș, o categorie sau o locație apropiată.
+                            </p>
+                        </div>
                     </div>
                 )}
 

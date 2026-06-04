@@ -170,6 +170,18 @@ function strictScorePlace(p: GlobalSearchPlace, normQ: string): number {
         );
     }
 
+    const normCity = p._n_city ?? normalizeForSearch(p.city_name);
+    if (normCity.length) {
+        const ct = tolerantTier(normQ, normCity);
+        score = Math.max(score, tierScore(ct, CITY_EXACT, CITY_STARTS, CITY_INCLUDES));
+    }
+
+    const normCat = p._n_cat ?? normalizeForSearch(p.category_name);
+    if (normCat.length) {
+        const catT = tolerantTier(normQ, normCat);
+        score = Math.max(score, tierScore(catT, CAT_EXACT, CAT_STARTS, CAT_INCLUDES));
+    }
+
     return score;
 }
 
@@ -195,7 +207,9 @@ function fuzzyScorePlace(p: GlobalSearchPlace, normQ: string): number {
     const nameScore = fuzzyScoreSingleField(p.name, normQ, p._n_name);
     if (nameScore >= Math.round(FUZZY_SCORE_BASE * 0.9)) return nameScore;
     const addrScore = fuzzyScoreSingleField(p.address ?? "", normQ, p._n_addr);
-    return Math.max(nameScore, addrScore);
+    const cityScore = fuzzyScoreSingleField(p.city_name, normQ, p._n_city);
+    const catScore = fuzzyScoreSingleField(p.category_name, normQ, p._n_cat);
+    return Math.max(nameScore, addrScore, cityScore, catScore);
 }
 
 function strictScoreCategoryRow(cat: GlobalSearchCategory, normQ: string): number {

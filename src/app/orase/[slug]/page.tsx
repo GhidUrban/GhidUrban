@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CityCategoryCarousels } from "@/components/CityCategoryCarousels";
 import { OraseFlowPageHeader } from "@/components/OraseFlowPageHeader";
+import { PageShell } from "@/components/ui/PageShell";
 import { apiGet } from "@/lib/internal-api";
 import { getTopPlacesPerCategoryForCity } from "@/lib/place-repository";
 import { slugToTitle } from "@/lib/slug";
@@ -71,23 +72,21 @@ export default async function CityPage({ params }: CityPageProps) {
     }));
 
     return (
-        <main className="min-h-screen bg-gray-100 py-4">
-            <div className="mx-auto max-w-5xl px-4">
-                <OraseFlowPageHeader
-                    items={[
-                        { label: "Orașe", href: "/orase" },
-                        { label: cityName }
-                    ]}
-                    title={cityName}
-                    titleClassName="max-w-2xl"
-                />
+        <PageShell width="wide">
+            <OraseFlowPageHeader
+                items={[
+                    { label: "Orașe", href: "/orase" },
+                    { label: cityName }
+                ]}
+                title={cityName}
+                titleClassName="max-w-2xl"
+            />
 
-                <CityCategoryCarousels
-                    citySlug={slug}
-                    categories={categoryInfos}
-                    placesByCategory={placesByCategory}
-                />
-            </div>
-        </main>
+            <CityCategoryCarousels
+                citySlug={slug}
+                categories={categoryInfos}
+                placesByCategory={placesByCategory}
+            />
+        </PageShell>
     );
 }

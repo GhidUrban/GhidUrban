@@ -3,6 +3,7 @@ import {
     loadGlobalSearchIndex,
     type GlobalSearchIndex,
 } from "@/lib/load-global-search-index";
+import { PageShell } from "@/components/ui/PageShell";
 import { GlobalSearchClient } from "./GlobalSearchClient";
 
 export const metadata: Metadata = {
@@ -39,18 +40,17 @@ export default async function CautaPage({ searchParams }: CautaPageProps) {
 
     try {
         index = await loadGlobalSearchIndex();
-    } catch {
+    } catch (err) {
+        console.error("[SearchIndex] load failed:", err);
         index = { cities: [], categories: [], places: [] };
     }
 
     return (
-        <main className="min-h-screen bg-gray-100 py-4">
-            <div className="mx-auto max-w-4xl px-4">
-                <GlobalSearchClient
-                    index={index}
-                    initialQuery={initialQuery}
-                />
-            </div>
-        </main>
+        <PageShell width="normal">
+            <GlobalSearchClient
+                index={index}
+                initialQuery={initialQuery}
+            />
+        </PageShell>
     );
 }
